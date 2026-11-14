@@ -1,15 +1,18 @@
-"""API endpoints. Calculations arrive in later chunks; for now everything but /health returns 501."""
+"""API endpoints. Calculations arrive in later chunks; those endpoints return 501 for now."""
 
 from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from app.core import sites
 from app.models import (
     CompareRequest,
     CompareResponse,
     HealthResponse,
     HorizonResponse,
+    Region,
+    Site,
     SitesResponse,
     SnapshotResponse,
     VisibilityResponse,
@@ -28,8 +31,16 @@ def health(request: Request) -> HealthResponse:
 
 
 @router.get("/sites", response_model=SitesResponse)
-def list_sites():
-    _not_implemented()
+def list_sites(region: Optional[Region] = None) -> SitesResponse:
+    return SitesResponse(sites=sites.list_sites(region))
+
+
+@router.get("/sites/{site_id}", response_model=Site)
+def get_site(site_id: str) -> Site:
+    try:
+        return sites.get_site(site_id)
+    except sites.SiteNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.get("/visibility", response_model=VisibilityResponse)

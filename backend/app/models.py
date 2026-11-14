@@ -21,6 +21,9 @@ Terrain = Literal["lola", "flat"]
 
 Verdict = Literal["good", "risky", "not_viable"]
 
+Region = Literal["equatorial", "far_side", "south_polar", "south_pole", "north_polar", "north_pole"]
+"""equatorial = |lat| < 60; *_polar = 60..80; *_pole = 80..90. far_side is set by hand in the catalog."""
+
 
 def normalize_lon(lon: float) -> float:
     """Map any longitude (e.g. 0..360) to -180..180."""
@@ -32,14 +35,16 @@ def normalize_lon(lon: float) -> float:
 
 
 class Site(BaseModel):
-    id: str = Field(description="Stable id, e.g. 'shackleton_rim'. 'custom' for ad-hoc lat/lon.")
+    id: str = Field(description="Stable id, e.g. 'im-2'. 'custom' for ad-hoc lat/lon.")
     name: str
     lat: float = Field(ge=-90, le=90)
     lon: float = Field(ge=-180, le=180)
-    region: Optional[str] = Field(None, description="e.g. 'South Pole', 'Nearside'")
-    mission: Optional[str] = Field(None, description="Associated mission, e.g. 'Artemis III candidate'")
+    region: Region
+    mission: Optional[str] = Field(None, description="Associated mission, e.g. 'Intuitive Machines IM-2 (2025)'")
     description: Optional[str] = None
-    has_terrain: bool = Field(description="True if a LOLA horizon profile exists for this site")
+    why_interesting: Optional[str] = Field(None, description="1-2 sentences on why this site matters for planning")
+    coords_verified: bool = Field(False, description="True if lat/lon were checked against an authoritative source")
+    has_terrain: bool = Field(description="True if a LOLA horizon profile exists for this site (computed, not stored)")
 
 
 class SitesResponse(BaseModel):

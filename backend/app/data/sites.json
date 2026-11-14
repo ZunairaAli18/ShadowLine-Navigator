@@ -1,1 +1,123 @@
-[]
+[
+  {
+    "id": "apollo-11",
+    "name": "Apollo 11 (Tranquility Base)",
+    "lat": 0.674,
+    "lon": 23.473,
+    "region": "equatorial",
+    "mission": "Apollo 11 (NASA, 1969)",
+    "description": "The first crewed Moon landing, in Mare Tranquillitatis in July 1969.",
+    "why_interesting": "A flat, near-equator site where the Sun rises and sets every ~29.5 days and Earth stays high in the sky. A good baseline for comparing polar sites.",
+    "coords_verified": false
+  },
+  {
+    "id": "apollo-15",
+    "name": "Apollo 15 (Hadley-Apennine)",
+    "lat": 26.13,
+    "lon": 3.63,
+    "region": "equatorial",
+    "mission": "Apollo 15 (NASA, 1971)",
+    "description": "Landed between the Apennine Mountains and Hadley Rille, and was the first mission to drive a lunar rover.",
+    "why_interesting": "Mountains nearby make it a mid-latitude site where real terrain could change sunrise and sunset times.",
+    "coords_verified": false
+  },
+  {
+    "id": "apollo-17",
+    "name": "Apollo 17 (Taurus-Littrow)",
+    "lat": 20.19,
+    "lon": 30.77,
+    "region": "equatorial",
+    "mission": "Apollo 17 (NASA, 1972)",
+    "description": "The last crewed Moon landing, in the Taurus-Littrow valley in December 1972.",
+    "why_interesting": "A valley floor surrounded by massifs, so the local horizon is higher than at a flat mare site.",
+    "coords_verified": false
+  },
+  {
+    "id": "blue-ghost-m1",
+    "name": "Blue Ghost Mission 1 (Mare Crisium)",
+    "lat": 18.56,
+    "lon": 61.81,
+    "region": "equatorial",
+    "mission": "Firefly Blue Ghost M1 (NASA CLPS, 2025)",
+    "description": "A commercial CLPS lander that touched down upright in Mare Crisium in March 2025.",
+    "why_interesting": "It worked through a full lunar day and recorded the sunset, a clean example of a day-length mission at low latitude.",
+    "coords_verified": false
+  },
+  {
+    "id": "slim",
+    "name": "SLIM (Shioli crater)",
+    "lat": -13.32,
+    "lon": 25.25,
+    "region": "equatorial",
+    "mission": "SLIM (JAXA, 2024)",
+    "description": "Japan's precision lander, which landed within about 100 m of its target in January 2024 but ended up tipped on its nose.",
+    "why_interesting": "Its solar panels faced the wrong way, so it only got power once the Sun moved across the sky. Panel orientation matters as much as sunlight.",
+    "coords_verified": false
+  },
+  {
+    "id": "reiner-gamma",
+    "name": "Reiner Gamma",
+    "lat": 7.5,
+    "lon": -59.0,
+    "region": "equatorial",
+    "mission": "Intuitive Machines IM-3 (NASA CLPS, planned)",
+    "description": "A bright swirl on Oceanus Procellarum linked to a local magnetic field.",
+    "why_interesting": "A planned CLPS target, near the western limb where Earth sits lower in the sky than at the Apollo sites.",
+    "coords_verified": false
+  },
+  {
+    "id": "change-4",
+    "name": "Chang'e 4 (Von Karman crater)",
+    "lat": -45.457,
+    "lon": 177.589,
+    "region": "far_side",
+    "mission": "Chang'e 4 (CNSA, 2019)",
+    "description": "The first soft landing on the Moon's far side, inside Von Karman crater in January 2019.",
+    "why_interesting": "Earth is never visible from here, so direct-to-Earth comms are impossible and it needed the Queqiao relay satellite.",
+    "coords_verified": true
+  },
+  {
+    "id": "chandrayaan-3",
+    "name": "Chandrayaan-3 (Shiv Shakti Point)",
+    "lat": -69.373,
+    "lon": 32.319,
+    "region": "south_polar",
+    "mission": "Chandrayaan-3 (ISRO, 2023)",
+    "description": "India's first soft landing, at high southern latitude in August 2023.",
+    "why_interesting": "The Sun stays low in the sky here, so shadows are long and solar power is weaker than near the equator.",
+    "coords_verified": true
+  },
+  {
+    "id": "im-1",
+    "name": "IM-1 Odysseus (near Malapert A)",
+    "lat": -80.13,
+    "lon": 1.44,
+    "region": "south_pole",
+    "mission": "Intuitive Machines IM-1 (NASA CLPS, 2024)",
+    "description": "The first commercial Moon landing, near Malapert A crater in February 2024. The lander tipped onto its side.",
+    "why_interesting": "Near the south pole the Sun skims the horizon, so a tilted lander and nearby hills can cut power a lot.",
+    "coords_verified": false
+  },
+  {
+    "id": "im-2",
+    "name": "IM-2 Athena (Mons Mouton)",
+    "lat": -84.7906,
+    "lon": 29.1957,
+    "region": "south_pole",
+    "mission": "Intuitive Machines IM-2 (NASA CLPS, 2025)",
+    "description": "Landed on the Mons Mouton plateau in March 2025 but came to rest on its side in a cold, shadowed crater.",
+    "why_interesting": "With too little sunlight on its panels it ran out of power within about a day, showing how unforgiving south pole lighting is.",
+    "coords_verified": true
+  },
+  {
+    "id": "shackleton-ridge",
+    "name": "Shackleton Connecting Ridge",
+    "lat": -89.45,
+    "lon": -137.3,
+    "region": "south_pole",
+    "mission": "Future CLPS target",
+    "description": "A raised ridge running from the rim of Shackleton crater, right next to the south pole.",
+    "why_interesting": "High ground near the pole gets sunlight for most of the year and sits next to permanently shadowed craters that may hold ice.",
+    "coords_verified": false
+  }
+]

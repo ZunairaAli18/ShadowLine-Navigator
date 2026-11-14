@@ -4,9 +4,11 @@
     "name": "Example South Pole Ridge",
     "lat": -89.45,
     "lon": -137.0,
-    "region": "South Pole",
+    "region": "south_pole",
     "mission": "Example data (not a real analysis)",
     "description": "Fake data for frontend development. Shapes and ranges are realistic; values are not.",
+    "why_interesting": "Example field: a short note on why this site matters.",
+    "coords_verified": false,
     "has_terrain": true
   },
   "terrain": "lola",

@@ -6,11 +6,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
+from app.core import sites
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Chunk 1: load DE421 + Moon frame kernels once here (app.core.ephemeris).
+    sites.load_catalog()
+    # Chunk 2: load DE421 + Moon frame kernels once here (app.core.ephemeris).
     app.state.ephemeris = None
     yield
 

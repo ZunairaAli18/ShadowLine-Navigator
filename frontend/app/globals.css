@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------- theme tokens
+   Each token becomes a Tailwind utility (bg-surface, text-muted, border-border, text-sun, ...)
+   and a CSS variable (--color-surface, ...). */
+@theme {
+  --color-bg: #0b0d1a;
+  --color-surface: #141729;
+  --color-border: #2a2e4a;
+  --color-accent: #b9a6ff;
+  --color-accent-deep: #7c5cff;
+  --color-text: #f4f2ff;
+  --color-muted: #a7a9c4;
+  --color-sun: #ffc56b;
+  --color-earth: #5ec8ff;
+  --color-good: #5bd69a;
+  --color-risky: #ffb454;
+  --color-notviable: #ff6b7a;
+}
+
+/* Fonts come from next/font (app/layout.tsx) as CSS variables. */
+@theme inline {
+  --font-heading: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-bg text-text font-body;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-heading font-bold leading-[1.1] tracking-tight;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--color-accent-deep) 55%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
+/* Small uppercase label above headings. */
+@utility eyebrow {
+  @apply text-xs font-semibold uppercase tracking-[0.2em] text-accent;
+}
+
+/* Subtle starfield: a few tiled layers of tiny dots, no images. */
+@utility starfield {
+  background-color: var(--color-bg);
+  background-image:
+    radial-gradient(1px 1px at 20px 30px, rgb(244 242 255 / 0.55), transparent),
+    radial-gradient(1px 1px at 140px 80px, rgb(244 242 255 / 0.35), transparent),
+    radial-gradient(1.5px 1.5px at 90px 160px, rgb(185 166 255 / 0.5), transparent),
+    radial-gradient(1px 1px at 210px 210px, rgb(244 242 255 / 0.3), transparent),
+    radial-gradient(1px 1px at 260px 40px, rgb(94 200 255 / 0.35), transparent),
+    radial-gradient(1px 1px at 330px 140px, rgb(244 242 255 / 0.45), transparent),
+    radial-gradient(1.5px 1.5px at 380px 260px, rgb(244 242 255 / 0.25), transparent),
+    radial-gradient(900px 500px at 80% -10%, rgb(124 92 255 / 0.14), transparent),
+    radial-gradient(700px 400px at -10% 30%, rgb(94 200 255 / 0.06), transparent);
+  background-size:
+    400px 300px,
+    400px 300px,
+    400px 300px,
+    400px 300px,
+    400px 300px,
+    400px 300px,
+    400px 300px,
+    100% 100%,
+    100% 100%;
+  background-repeat: repeat, repeat, repeat, repeat, repeat, repeat, repeat, no-repeat, no-repeat;
+}

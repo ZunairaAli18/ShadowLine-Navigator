@@ -25,6 +25,18 @@ def test_cors_allows_any_origin(client):
     assert r.headers["access-control-allow-origin"] == "*"
 
 
+def test_cors_preflight_from_frontend_dev_server(client):
+    # The Next.js dev server (localhost:3000) POSTs JSON to /compare, which triggers a preflight.
+    r = client.options("/compare", headers={
+        "Origin": "http://localhost:3000",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type",
+    })
+    assert r.status_code == 200
+    assert r.headers["access-control-allow-origin"] in ("*", "http://localhost:3000")
+    assert "POST" in r.headers["access-control-allow-methods"]
+
+
 def test_timing_header(client):
     assert float(client.get("/health").headers["x-process-time-ms"]) >= 0
 

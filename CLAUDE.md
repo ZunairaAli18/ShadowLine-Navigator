@@ -79,6 +79,33 @@ backend/
 - compute_visibility results are cached in memory (LRU, 128 entries); every response has an
   `X-Process-Time-Ms` header and is logged with its duration.
 
+## Frontend
+- Stack: Next.js 16 (App Router, Turbopack, `cacheComponents` on) + React 19 + TypeScript + Tailwind CSS v4.
+  Next 16 differs from older versions: check `frontend/node_modules/next/dist/docs/` before using an API.
+  With `cacheComponents`, uncached server-side fetches must sit inside `<Suspense>` (or use `"use cache"`);
+  interactive data fetching happens in client components.
+- Layout:
+  ```
+  frontend/
+    app/                 routes: / (landing), /app (navigator), /learn (guide), /styleguide
+      layout.tsx         fonts, header, footer, starfield
+      globals.css        Tailwind import + theme tokens (@theme) + eyebrow/starfield utilities
+    components/          Header, Footer, Starfield, HorizonSilhouette
+      ui/                Button, Card, Pill, SectionHeading, VerdictBadge (import from "@/components/ui")
+    lib/api.ts           typed client: the ONLY place that calls the backend
+    lib/api-types.ts     generated, don't edit
+  ```
+- Theme tokens (Tailwind utilities like `bg-surface`, `text-muted`, `border-border`, plus CSS vars `--color-*`):
+  bg #0B0D1A, surface #141729, border #2A2E4A, accent #B9A6FF, accent-deep #7C5CFF, text #F4F2FF,
+  muted #A7A9C4, sun #FFC56B, earth #5EC8FF, good #5BD69A, risky #FFB454, notviable #FF6B7A.
+  Fonts: Sora for headings (`font-heading`), Inter for body (`font-body`). Use the `eyebrow` class for labels.
+  Verdicts always show color AND text (`VerdictBadge`).
+- API rule: all backend calls go through `lib/api.ts` (getSites, getSite, getHorizon, getVisibility, getSnapshot,
+  compare, bestWindows). Errors are thrown as `ApiError` with the backend's `detail` as the message.
+  Types come from `npm run gen:api` (backend must be running); re-run it after any `models.py` change.
+- Config: `NEXT_PUBLIC_API_URL` (default `http://127.0.0.1:8000`); see `frontend/.env.example`.
+- Run: `cd frontend && npm install && npm run dev` (http://localhost:3000). Lint: `npm run lint`.
+
 ## Working rules
 - Build one chunk at a time. Finish each with a test or a script that prints real output.
 - `models.py` is the contract with the frontend team. Don't change field names without saying so clearly.

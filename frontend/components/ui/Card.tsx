@@ -1,6 +1,6 @@
 import type { HTMLAttributes } from "react";
 
-/** Rounded surface panel with a thin border. */
+/** Rounded glass panel (translucent surface, backdrop blur, hairline border). */
 export function Card({ className = "", ...rest }: HTMLAttributes<HTMLDivElement>) {
-  return <div {...rest} className={`rounded-2xl border border-border bg-surface p-5 ${className}`} />;
+  return <div {...rest} className={`glass rounded-2xl p-5 ${className}`} />;
 }

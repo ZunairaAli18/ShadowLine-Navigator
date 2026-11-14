@@ -80,7 +80,10 @@ backend/
   `X-Process-Time-Ms` header and is logged with its duration.
 
 ## Frontend
-- Stack: Next.js 16 (App Router, Turbopack, `cacheComponents` on) + React 19 + TypeScript + Tailwind CSS v4.
+- Visual direction: read `DESIGN.md` before any UI work; it wins over older theme notes.
+- Stack: Next.js 16 (App Router, Turbopack, `cacheComponents` on) + React 19 + TypeScript + Tailwind CSS v4,
+  plus `motion` (component motion), GSAP + ScrollTrigger (scroll scenes), Lenis (smooth scroll),
+  three + @react-three/fiber + drei (3D Moon).
   Next 16 differs from older versions: check `frontend/node_modules/next/dist/docs/` before using an API.
   With `cacheComponents`, uncached server-side fetches must sit inside `<Suspense>` (or use `"use cache"`);
   interactive data fetching happens in client components.
@@ -91,15 +94,27 @@ backend/
       layout.tsx         fonts, header, footer, starfield
       globals.css        Tailwind import + theme tokens (@theme) + eyebrow/starfield utilities
     components/          Header, Footer, Starfield, HorizonSilhouette
-      ui/                Button, Card, Pill, SectionHeading, VerdictBadge (import from "@/components/ui")
+      ui/                Button, Card (glass), Pill, SectionHeading, VerdictBadge (import from "@/components/ui")
+      fx/                SmoothScroll, Reveal, MaskReveal, CountUp, TiltCard, MagneticButton, CornerTickLink,
+                         OutlineText, TickRuler, HorizonLayers
+      moon/              MoonGlobe (R3F, real-Sun lighting) + MoonGlobeLazy (dynamic, no SSR)
+      landing/           landing page sections
     lib/api.ts           typed client: the ONLY place that calls the backend
     lib/api-types.ts     generated, don't edit
+    lib/useCapable.ts    useCapable() (3D + scroll scenes) / useReducedMotionPref(), SSR-safe
+    lib/sun.ts           Sun direction in the Moon frame from /snapshot az/el at (0, 0)
+    public/textures/     NASA SVS CGI Moon Kit colour + displacement maps (credited in the footer)
   ```
 - Theme tokens (Tailwind utilities like `bg-surface`, `text-muted`, `border-border`, plus CSS vars `--color-*`):
-  bg #0B0D1A, surface #141729, border #2A2E4A, accent #B9A6FF, accent-deep #7C5CFF, text #F4F2FF,
+  bg #07080F, bg-2 #0B0D1A, surface rgba(20,23,41,.55) (glass), surface-solid #141729,
+  border rgba(185,166,255,.14) (hairline), lunar-100..900, accent #B9A6FF, accent-deep #7C5CFF, text #F4F2FF,
   muted #A7A9C4, sun #FFC56B, earth #5EC8FF, good #5BD69A, risky #FFB454, notviable #FF6B7A.
-  Fonts: Sora for headings (`font-heading`), Inter for body (`font-body`). Use the `eyebrow` class for labels.
+  Fonts: Sora (`font-heading`, `display` utility for huge headlines), Inter (`font-body`), JetBrains Mono
+  (`font-mono`, `hud` utility). Utilities: `eyebrow`, `display`, `hud`, `glass`.
   Verdicts always show color AND text (`VerdictBadge`).
+- Motion rules: every animation has a reduced-motion fallback (`useReducedMotionPref`, or `motion-safe:`).
+  3D and scroll scenes only render when `useCapable()` (>= 1024px, fine pointer, WebGL, not reduced motion,
+  not low-power); otherwise the 2D fallback renders (HeroSky, problem cards). The globe pauses off-screen.
 - API rule: all backend calls go through `lib/api.ts` (getSites, getSite, getHorizon, getVisibility, getSnapshot,
   compare, bestWindows). Errors are thrown as `ApiError` with the backend's `detail` as the message.
   Types come from `npm run gen:api` (backend must be running); re-run it after any `models.py` change.

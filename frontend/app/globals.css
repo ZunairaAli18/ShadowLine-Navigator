@@ -1,12 +1,23 @@
 @import "tailwindcss";
 
-/* ---------------------------------------------------------------- theme tokens
+/* ---------------------------------------------------------------- theme tokens (see DESIGN.md)
    Each token becomes a Tailwind utility (bg-surface, text-muted, border-border, text-sun, ...)
    and a CSS variable (--color-surface, ...). */
 @theme {
-  --color-bg: #0b0d1a;
-  --color-surface: #141729;
-  --color-border: #2a2e4a;
+  --color-bg: #07080f; /* page background, near black */
+  --color-bg-2: #0b0d1a; /* alternate sections */
+  --color-surface: rgb(20 23 41 / 0.55); /* glass panels, use with backdrop-blur */
+  --color-surface-solid: #141729;
+  --color-border: rgb(185 166 255 / 0.14); /* hairline */
+  --color-lunar-100: #f2f2f4;
+  --color-lunar-200: #d9dae0;
+  --color-lunar-300: #bfc0c9;
+  --color-lunar-400: #a3a5b0;
+  --color-lunar-500: #878996;
+  --color-lunar-600: #6b6d7a;
+  --color-lunar-700: #50525e;
+  --color-lunar-800: #353743;
+  --color-lunar-900: #1a1b22;
   --color-accent: #b9a6ff;
   --color-accent-deep: #7c5cff;
   --color-text: #f4f2ff;
@@ -48,6 +59,7 @@
   --font-heading: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
   --font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 @layer base {
@@ -74,7 +86,24 @@
 
 /* Small uppercase label above headings. */
 @utility eyebrow {
-  @apply text-xs font-semibold uppercase tracking-[0.2em] text-accent;
+  @apply text-xs font-semibold uppercase tracking-[0.3em] text-accent;
+}
+
+/* Very large display headline (DESIGN.md: Sora 700, up to ~8rem, leading 0.95). */
+@utility display {
+  @apply font-heading font-bold tracking-tight;
+  font-size: clamp(3rem, 9vw, 8rem);
+  line-height: 0.95;
+}
+
+/* HUD / numbers: mono, uppercase, wide tracking. */
+@utility hud {
+  @apply font-mono text-[11px] uppercase tracking-[0.3em] text-lunar-400;
+}
+
+/* Glass panel: translucent surface + blur + hairline border. */
+@utility glass {
+  @apply border border-border bg-surface backdrop-blur-md;
 }
 
 /* Subtle starfield: a few tiled layers of tiny dots, no images. */

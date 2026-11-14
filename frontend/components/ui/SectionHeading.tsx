@@ -19,7 +19,7 @@ export function SectionHeading({ eyebrow, title, description, viewAllHref, viewA
         {description && <p className="mt-3 text-muted">{description}</p>}
       </div>
       {viewAllHref && (
-        <Link href={viewAllHref} className="shrink-0 text-sm font-semibold text-accent hover:text-text">
+        <Link href={viewAllHref} className="shrink-0 py-2 text-sm font-semibold text-accent hover:text-text">
           {viewAllLabel} <span aria-hidden>→</span>
         </Link>
       )}

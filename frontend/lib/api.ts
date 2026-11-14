@@ -20,9 +20,13 @@ export type SnapshotResponse = Schemas["SnapshotResponse"];
 export type Metrics = Schemas["Metrics"];
 export type Verdict = Metrics["verdict"];
 export type MissionEvent = Schemas["Event"];
-export type CompareRequest = Schemas["CompareRequest"];
 export type Scenario = Schemas["Scenario"];
+/** Fields with server-side defaults are optional when sending (the generated type marks them required). */
+type ScenarioDefaults = "days" | "step_minutes" | "terrain_mode" | "earth_margin_deg";
+export type ScenarioInput = Omit<Scenario, ScenarioDefaults> & Partial<Pick<Scenario, ScenarioDefaults>>;
+export type CompareRequest = { scenarios: ScenarioInput[] };
 export type CompareResponse = Schemas["CompareResponse"];
+export type ScenarioResult = Schemas["ScenarioResult"];
 export type BestWindow = Schemas["BestWindow"];
 export type BestWindowsResponse = Schemas["BestWindowsResponse"];
 export type TerrainMode = NonNullable<Scenario["terrain_mode"]>;

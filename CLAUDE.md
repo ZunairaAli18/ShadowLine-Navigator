@@ -105,6 +105,10 @@ backend/
   Types come from `npm run gen:api` (backend must be running); re-run it after any `models.py` change.
 - Config: `NEXT_PUBLIC_API_URL` (default `http://127.0.0.1:8000`); see `frontend/.env.example`.
 - Run: `cd frontend && npm install && npm run dev` (http://localhost:3000). Lint: `npm run lint`.
+  If edits to the `@theme` block in globals.css don't show up (new tokens/animations missing), restart `npm run dev`:
+  the Turbopack Tailwind loader can keep serving the old theme.
+- Navigator deep links (build them with `navigatorUrl()` in lib/format.ts):
+  `/app?site=<id>&start=<ISO UTC>&days=<n>`, `/app?site=<id>&tab=best`, `/app?tab=compare`.
 
 ## Working rules
 - Build one chunk at a time. Finish each with a test or a script that prints real output.

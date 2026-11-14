@@ -16,6 +16,31 @@
   --color-good: #5bd69a;
   --color-risky: #ffb454;
   --color-notviable: #ff6b7a;
+
+  /* slow, decorative motion (always used with motion-safe:) */
+  --animate-drift: drift 70s ease-in-out infinite alternate;
+  --animate-drift-slow: drift 110s ease-in-out infinite alternate-reverse;
+  --animate-glow: glow 9s ease-in-out infinite;
+
+  @keyframes drift {
+    from {
+      transform: translateX(-12px);
+    }
+    to {
+      transform: translateX(12px);
+    }
+  }
+  @keyframes glow {
+    0%,
+    100% {
+      opacity: 0.85;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.06);
+    }
+  }
 }
 
 /* Fonts come from next/font (app/layout.tsx) as CSS variables. */

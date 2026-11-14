@@ -16,7 +16,8 @@ type Props = {
 const W = 1200;
 const H = 200;
 
-function mulberry32(seed: number) {
+/** Small deterministic PRNG (same sequence on server and client). */
+export function mulberry32(seed: number) {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -27,23 +28,29 @@ function mulberry32(seed: number) {
   };
 }
 
-function ridge(seed: number, roughness: number): string {
+/** Ridge points [x, y] across a width x height box (y down). Two broad massifs plus jagged noise. */
+export function ridgePoints(seed: number, roughness: number, width = W, height = H, steps = 48): [number, number][] {
   const rand = mulberry32(seed);
   const points: [number, number][] = [];
-  const steps = 48;
-  // Two broad "massifs" plus small jagged noise.
   const m1 = 0.2 + rand() * 0.25;
   const m2 = 0.6 + rand() * 0.3;
   for (let i = 0; i <= steps; i++) {
-    const x = (i / steps) * W;
     const u = i / steps;
     const massif =
       Math.exp(-(((u - m1) / 0.12) ** 2)) * 0.9 + Math.exp(-(((u - m2) / 0.18) ** 2)) * 0.6;
     const noise = (rand() - 0.5) * 0.35;
-    const height = Math.max(0.05, 0.25 + massif * 0.55 + noise * 0.4) * roughness;
-    points.push([x, H - height * H]);
+    const h = Math.max(0.05, 0.25 + massif * 0.55 + noise * 0.4) * roughness;
+    points.push([u * width, height - h * height]);
   }
+  return points;
+}
+
+export function toPath(points: [number, number][]): string {
   return points.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+}
+
+function ridge(seed: number, roughness: number): string {
+  return toPath(ridgePoints(seed, roughness));
 }
 
 export function HorizonSilhouette({ className = "", seed = 7, roughness = 0.75, glow = true }: Props) {

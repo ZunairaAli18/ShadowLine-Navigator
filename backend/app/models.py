@@ -1,0 +1,184 @@
+"""Pydantic request/response models: the API contract with the frontend.
+
+Don't rename fields without telling the frontend team.
+
+Conventions (see CLAUDE.md):
+- Angles in degrees.
+- Azimuth: 0 = north, 90 = east, clockwise.
+- Elevation: degrees above the local flat horizon.
+- Longitude east-positive, normalized to -180..180. Latitude -90..90.
+- Times are UTC datetimes, serialized as ISO 8601 with "Z" (e.g. "2026-12-01T00:00:00Z").
+- Percentages are 0-100. Fractions are 0-1.
+"""
+
+from datetime import datetime
+from typing import Literal, Optional
+
+from pydantic import BaseModel, Field, model_validator
+
+Terrain = Literal["lola", "flat"]
+"""'lola' = real LOLA terrain horizon; 'flat' = 0 deg horizon fallback (UI should say so)."""
+
+Verdict = Literal["good", "risky", "not_viable"]
+
+
+def normalize_lon(lon: float) -> float:
+    """Map any longitude (e.g. 0..360) to -180..180."""
+    lon = ((lon + 180.0) % 360.0) - 180.0
+    return 180.0 if lon == -180.0 else lon
+
+
+# ---------------------------------------------------------------- sites
+
+
+class Site(BaseModel):
+    id: str = Field(description="Stable id, e.g. 'shackleton_rim'. 'custom' for ad-hoc lat/lon.")
+    name: str
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    region: Optional[str] = Field(None, description="e.g. 'South Pole', 'Nearside'")
+    mission: Optional[str] = Field(None, description="Associated mission, e.g. 'Artemis III candidate'")
+    description: Optional[str] = None
+    has_terrain: bool = Field(description="True if a LOLA horizon profile exists for this site")
+
+
+class SitesResponse(BaseModel):
+    sites: list[Site]
+
+
+# ---------------------------------------------------------------- visibility
+
+
+class SunSeries(BaseModel):
+    """Parallel arrays, one entry per entry in VisibilityResponse.times."""
+
+    az: list[float]
+    el: list[float]
+    visible_fraction: list[float] = Field(description="Fraction of the solar disk above the terrain horizon, 0-1")
+
+
+class EarthSeries(BaseModel):
+    """Parallel arrays, one entry per entry in VisibilityResponse.times."""
+
+    az: list[float]
+    el: list[float]
+    visible: list[bool] = Field(description="Earth center above the terrain horizon")
+
+
+class Metrics(BaseModel):
+    sun_pct: float = Field(description="% of time with any part of the Sun visible (weighted by visible fraction)")
+    earth_pct: float = Field(description="% of time Earth is visible (direct-to-Earth comms possible)")
+    both_pct: float = Field(description="% of time with both sunlight and Earth visible")
+    longest_dark_hours: float = Field(description="Longest continuous stretch with no sunlight")
+    longest_no_earth_hours: float = Field(description="Longest continuous stretch without Earth in view")
+    next_sunrise: Optional[datetime] = Field(None, description="First sunrise in the window; null if none")
+    next_sunset: Optional[datetime] = None
+    next_earthrise: Optional[datetime] = None
+    next_earthset: Optional[datetime] = None
+    max_sun_el: float
+    mean_sun_el: float
+    power_index: float = Field(description="0-1 score combining sunlight % and Sun elevation")
+    verdict: Verdict
+
+
+class VisibilityResponse(BaseModel):
+    site: Site
+    terrain: Terrain
+    start: datetime
+    step_minutes: int
+    times: list[datetime]
+    sun: SunSeries
+    earth: EarthSeries
+    metrics: Metrics
+
+
+# ---------------------------------------------------------------- snapshot
+
+
+class BodyPosition(BaseModel):
+    az: float
+    el: float
+    horizon_el: float = Field(description="Terrain horizon elevation at this azimuth (0 for flat)")
+    visible: bool
+    visible_fraction: float = Field(description="Sun: fraction of disk visible, 0-1. Earth: 0 or 1.")
+
+
+class Countdown(BaseModel):
+    time: Optional[datetime] = Field(None, description="When the event happens; null if not found in search window")
+    hours: Optional[float] = Field(None, description="Hours from the snapshot time until the event")
+
+
+class Countdowns(BaseModel):
+    sunrise: Countdown
+    sunset: Countdown
+    earthrise: Countdown
+    earthset: Countdown
+
+
+class SnapshotResponse(BaseModel):
+    site: Site
+    terrain: Terrain
+    time: datetime
+    sun: BodyPosition
+    earth: BodyPosition
+    countdowns: Countdowns
+
+
+# ---------------------------------------------------------------- horizon
+
+
+class HorizonResponse(BaseModel):
+    site_id: str
+    terrain: Terrain
+    elevation: list[float] = Field(
+        description="360 values; elevation[i] = terrain horizon elevation (deg) at azimuth i deg"
+    )
+
+
+# ---------------------------------------------------------------- compare
+
+
+class Scenario(BaseModel):
+    """One site/date scenario. Give either site_id, or lat + lon."""
+
+    label: Optional[str] = Field(None, description="Display name, e.g. 'Shackleton, Dec 2026'")
+    site_id: Optional[str] = None
+    lat: Optional[float] = Field(None, ge=-90, le=90)
+    lon: Optional[float] = Field(None, ge=-180, le=360)
+    start: datetime
+    days: float = Field(30, gt=0, le=366)
+    step_minutes: int = Field(60, ge=5, le=1440)
+
+    @model_validator(mode="after")
+    def _check_location(self):
+        if self.site_id is None and (self.lat is None or self.lon is None):
+            raise ValueError("give either site_id, or both lat and lon")
+        if self.lon is not None:
+            self.lon = normalize_lon(self.lon)
+        return self
+
+
+class CompareRequest(BaseModel):
+    scenarios: list[Scenario] = Field(min_length=1, max_length=3)
+
+
+class ScenarioResult(BaseModel):
+    label: Optional[str]
+    site: Site
+    terrain: Terrain
+    start: datetime
+    days: float
+    step_minutes: int
+    metrics: Metrics
+
+
+class CompareResponse(BaseModel):
+    results: list[ScenarioResult] = Field(description="Same order as the request's scenarios")
+
+
+# ---------------------------------------------------------------- misc
+
+
+class HealthResponse(BaseModel):
+    status: Literal["ok"] = "ok"
+    ephemeris_loaded: bool

@@ -6,14 +6,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
-from app.core import sites
+from app.core import ephemeris, sites
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     sites.load_catalog()
-    # Chunk 2: load DE421 + Moon frame kernels once here (app.core.ephemeris).
-    app.state.ephemeris = None
+    try:
+        ephemeris.load_ephemeris()
+    except ephemeris.EphemerisNotLoadedError as e:
+        # Keep serving (/health, /sites); /health reports ephemeris_loaded=false.
+        print(f"WARNING: ephemeris not loaded.\n{e}")
     yield
 
 

@@ -3,9 +3,9 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query
 
-from app.core import sites
+from app.core import ephemeris, sites
 from app.models import (
     CompareRequest,
     CompareResponse,
@@ -26,8 +26,8 @@ def _not_implemented():
 
 
 @router.get("/health", response_model=HealthResponse)
-def health(request: Request) -> HealthResponse:
-    return HealthResponse(ephemeris_loaded=getattr(request.app.state, "ephemeris", None) is not None)
+def health() -> HealthResponse:
+    return HealthResponse(ephemeris_loaded=ephemeris.is_loaded())
 
 
 @router.get("/sites", response_model=SitesResponse)

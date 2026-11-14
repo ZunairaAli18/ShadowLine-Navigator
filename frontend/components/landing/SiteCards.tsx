@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { Reveal } from "@/components/fx/Reveal";
+import { TiltCard } from "@/components/fx/TiltCard";
 import { Card, Pill } from "@/components/ui";
 import { ApiError, getSites, type Site } from "@/lib/api";
 import { navigatorUrl, regionLabel } from "@/lib/format";
@@ -55,10 +57,11 @@ export function SiteCards() {
               </Card>
             </li>
           ))
-        : state.sites.map((site) => {
+        : state.sites.map((site, i) => {
             const tag = FEATURED.find((f) => f.id === site.id)?.tag;
             return (
-              <li key={site.id}>
+              <Reveal as="li" key={site.id} delay={i * 0.08}>
+                <TiltCard>
                 <Link
                   href={navigatorUrl({ site: site.id })}
                   className="group block h-full rounded-2xl focus-visible:outline-offset-4"
@@ -81,7 +84,8 @@ export function SiteCards() {
                     </div>
                   </Card>
                 </Link>
-              </li>
+                </TiltCard>
+              </Reveal>
             );
           })}
     </ul>

@@ -36,6 +36,10 @@ export function Footer() {
             Terrain: NASA LRO LOLA (GSFC PGDA). Ephemeris: JPL DE421 via Skyfield, validated against JPL Horizons.
             Coordinates checked in LROC QuickMap.
           </p>
+          <p className="text-muted">
+            3D Moon textures: NASA Scientific Visualization Studio, CGI Moon Kit (LRO LROC/LOLA data, credit
+            NASA/GSFC/Arizona State University).
+          </p>
         </div>
       </div>
       <p className="mx-auto max-w-6xl border-t border-border/40 px-4 py-6 text-xs text-muted/80 sm:px-6">

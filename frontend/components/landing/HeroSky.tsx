@@ -33,10 +33,15 @@ const STARS = Array.from({ length: 150 }, () => ({
   layer: rand() < 0.5 ? 0 : 1,
 }));
 
-export function HeroSky({ className = "" }: { className?: string }) {
+/**
+ * fit "meet" (default): scale to the width. fit "slice": fill the box anchored to the bottom, cropping
+ * empty sky at the top first (use in a box no taller than width * 560/1200 so the sides never crop).
+ */
+export function HeroSky({ className = "", fit = "meet" }: { className?: string; fit?: "meet" | "slice" }) {
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio={fit === "slice" ? "xMidYMax slice" : "xMidYMid meet"}
       className={`block h-auto w-full ${className}`}
       role="img"
       aria-label="Illustration: the Sun skimming a jagged lunar ridge, with a small Earth low above the horizon."

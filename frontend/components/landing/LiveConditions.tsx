@@ -3,9 +3,13 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { motion } from "motion/react";
+
+import { CountUp } from "@/components/fx/CountUp";
 import { Button, Card, VerdictBadge } from "@/components/ui";
 import { ApiError, compare, type ScenarioResult } from "@/lib/api";
 import { navigatorUrl, nowHourUtc } from "@/lib/format";
+import { useReducedMotionPref } from "@/lib/useCapable";
 
 const SITE_IDS = ["apollo-11", "apollo-15", "im-2", "shackleton-ridge"];
 const DAYS = 14;
@@ -25,9 +29,12 @@ async function loadConditions(start: Date, signal: AbortSignal): Promise<Scenari
   return responses.flatMap((r) => r.results);
 }
 
+/** Sun up: pulsing halo. Earth in view: gentle bob. Off: struck through (never color-only). Still under reduced motion. */
 function StatusDot({ kind, on }: { kind: "sun" | "earth"; on: boolean }) {
+  const reduced = useReducedMotionPref();
   const label = kind === "sun" ? (on ? "Sun up now" : "Sun down now") : on ? "Earth in view now" : "Earth hidden now";
   const color = kind === "sun" ? "border-sun/60 bg-sun/15 text-sun" : "border-earth/60 bg-earth/15 text-earth";
+  const animateOn = on && !reduced;
   return (
     <span
       title={label}
@@ -35,7 +42,21 @@ function StatusDot({ kind, on }: { kind: "sun" | "earth"; on: boolean }) {
         on ? color : "border-border bg-bg/40 text-muted/60"
       }`}
     >
-      <span aria-hidden>{kind === "sun" ? "☀" : "◉"}</span>
+      {animateOn && kind === "sun" && (
+        <motion.span
+          aria-hidden
+          className="absolute inset-0 rounded-full border border-sun/60"
+          animate={{ scale: [1, 1.7], opacity: [0.6, 0] }}
+          transition={{ duration: 2.2, repeat: Infinity, ease: "easeOut" }}
+        />
+      )}
+      <motion.span
+        aria-hidden
+        animate={animateOn && kind === "earth" ? { y: [0, -2.5, 0] } : { y: 0 }}
+        transition={animateOn && kind === "earth" ? { duration: 3, repeat: Infinity, ease: "easeInOut" } : { duration: 0 }}
+      >
+        {kind === "sun" ? "☀" : "◉"}
+      </motion.span>
       {!on && (
         <span aria-hidden className="absolute h-px w-6 rotate-45 bg-muted/70" /* strike-through: not color-only */ />
       )}
@@ -119,9 +140,13 @@ export function LiveConditions() {
                       <VerdictBadge verdict={r.metrics.verdict} />
                     </div>
                     <p className="text-sm text-muted">
-                      <span className="text-sun">Sun {Math.round(r.metrics.sun_pct)}%</span>
+                      <span className="text-sun">
+                        Sun <CountUp value={Math.round(r.metrics.sun_pct)} suffix="%" duration={1.1} />
+                      </span>
                       {" · "}
-                      <span className="text-earth">Earth {Math.round(r.metrics.earth_pct)}%</span>
+                      <span className="text-earth">
+                        Earth <CountUp value={Math.round(r.metrics.earth_pct)} suffix="%" duration={1.1} />
+                      </span>
                     </p>
                   </Card>
                 </Link>

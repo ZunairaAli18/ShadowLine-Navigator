@@ -31,9 +31,9 @@ def test_catalog_loads_and_validates():
         assert -180 <= site.lon <= 180
 
 
-def test_coords_verified_flags():
-    verified = {s.id for s in sites.list_sites() if s.coords_verified}
-    assert verified == {"change-4", "chandrayaan-3", "im-2"}
+def test_all_catalog_coords_verified():
+    # Every catalog site was checked in Quickmap; only ad-hoc custom sites are unverified.
+    assert all(s.coords_verified for s in sites.list_sites())
 
 
 def test_has_terrain_not_hardcoded_in_json():

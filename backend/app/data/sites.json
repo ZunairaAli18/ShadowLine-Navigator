@@ -8,7 +8,7 @@
     "mission": "Apollo 11 (NASA, 1969)",
     "description": "The first crewed Moon landing, in Mare Tranquillitatis in July 1969.",
     "why_interesting": "A flat, near-equator site where the Sun rises and sets every ~29.5 days and Earth stays high in the sky. A good baseline for comparing polar sites.",
-    "coords_verified": false
+    "coords_verified": true
   },
   {
     "id": "apollo-15",
@@ -19,7 +19,7 @@
     "mission": "Apollo 15 (NASA, 1971)",
     "description": "Landed between the Apennine Mountains and Hadley Rille, and was the first mission to drive a lunar rover.",
     "why_interesting": "Mountains nearby make it a mid-latitude site where real terrain could change sunrise and sunset times.",
-    "coords_verified": false
+    "coords_verified": true
   },
   {
     "id": "apollo-17",
@@ -30,7 +30,7 @@
     "mission": "Apollo 17 (NASA, 1972)",
     "description": "The last crewed Moon landing, in the Taurus-Littrow valley in December 1972.",
     "why_interesting": "A valley floor surrounded by massifs, so the local horizon is higher than at a flat mare site.",
-    "coords_verified": false
+    "coords_verified": true
   },
   {
     "id": "blue-ghost-m1",
@@ -41,7 +41,7 @@
     "mission": "Firefly Blue Ghost M1 (NASA CLPS, 2025)",
     "description": "A commercial CLPS lander that touched down upright in Mare Crisium in March 2025.",
     "why_interesting": "It worked through a full lunar day and recorded the sunset, a clean example of a day-length mission at low latitude.",
-    "coords_verified": false
+    "coords_verified": true
   },
   {
     "id": "slim",
@@ -52,7 +52,7 @@
     "mission": "SLIM (JAXA, 2024)",
     "description": "Japan's precision lander, which landed within about 100 m of its target in January 2024 but ended up tipped on its nose.",
     "why_interesting": "Its solar panels faced the wrong way, so it only got power once the Sun moved across the sky. Panel orientation matters as much as sunlight.",
-    "coords_verified": false
+    "coords_verified": true
   },
   {
     "id": "reiner-gamma",
@@ -63,7 +63,7 @@
     "mission": "Intuitive Machines IM-3 (NASA CLPS, planned)",
     "description": "A bright swirl on Oceanus Procellarum linked to a local magnetic field.",
     "why_interesting": "A planned CLPS target, near the western limb where Earth sits lower in the sky than at the Apollo sites.",
-    "coords_verified": false
+    "coords_verified": true
   },
   {
     "id": "change-4",
@@ -96,7 +96,7 @@
     "mission": "Intuitive Machines IM-1 (NASA CLPS, 2024)",
     "description": "The first commercial Moon landing, near Malapert A crater in February 2024. The lander tipped onto its side.",
     "why_interesting": "Near the south pole the Sun skims the horizon, so a tilted lander and nearby hills can cut power a lot.",
-    "coords_verified": false
+    "coords_verified": true
   },
   {
     "id": "im-2",
@@ -118,6 +118,6 @@
     "mission": "Future CLPS target",
     "description": "A raised ridge running from the rim of Shackleton crater, right next to the south pole.",
     "why_interesting": "High ground near the pole gets sunlight for most of the year and sits next to permanently shadowed craters that may hold ice.",
-    "coords_verified": false
+    "coords_verified": true
   }
 ]

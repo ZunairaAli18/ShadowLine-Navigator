@@ -70,20 +70,48 @@ class EarthSeries(BaseModel):
     visible: list[bool] = Field(description="Earth center above the terrain horizon")
 
 
+EventType = Literal["sunrise", "sunset", "earthrise", "earthset"]
+
+
+class Event(BaseModel):
+    type: EventType
+    time: datetime = Field(description="UTC, interpolated between time steps")
+    hours_from_start: float
+
+
 class Metrics(BaseModel):
-    sun_pct: float = Field(description="% of time with any part of the Sun visible (weighted by visible fraction)")
-    earth_pct: float = Field(description="% of time Earth is visible (direct-to-Earth comms possible)")
-    both_pct: float = Field(description="% of time with both sunlight and Earth visible")
-    longest_dark_hours: float = Field(description="Longest continuous stretch with no sunlight")
+    """Metrics for the requested window. "Sun up" = center of the solar disk above the terrain skyline."""
+
+    sun_pct: float = Field(description="% of time steps with the Sun up")
+    earth_pct: float = Field(description="% of time steps with Earth visible (direct-to-Earth comms possible)")
+    both_pct: float = Field(description="% of time steps with the Sun up and Earth visible")
+    longest_dark_hours: float = Field(description="Longest continuous stretch with the Sun down")
+    longest_dark_truncated: bool = Field(
+        description="True if that stretch touches the window start or end, so it is 'at least' this long"
+    )
     longest_no_earth_hours: float = Field(description="Longest continuous stretch without Earth in view")
-    next_sunrise: Optional[datetime] = Field(None, description="First sunrise in the window; null if none")
-    next_sunset: Optional[datetime] = None
+    longest_no_earth_truncated: bool
+    sun_up_at_start: bool
+    earth_visible_at_start: bool
+    next_sunrise: Optional[datetime] = Field(None, description="First sunrise after the window start; null if none")
+    next_sunrise_hours: Optional[float] = Field(None, description="Hours from the window start")
+    next_sunset: Optional[datetime] = Field(
+        None, description="First sunset after the start (after the next sunrise if the Sun starts down)"
+    )
+    next_sunset_hours: Optional[float] = None
     next_earthrise: Optional[datetime] = None
+    next_earthrise_hours: Optional[float] = None
     next_earthset: Optional[datetime] = None
+    next_earthset_hours: Optional[float] = None
     max_sun_el: float
     mean_sun_el: float
-    power_index: float = Field(description="0-1 score combining sunlight % and Sun elevation")
+    power_index: float = Field(
+        description="Mean visible fraction of the solar disk over the window, 0-1. "
+        "Assumes Sun-facing panels (vertical or tracking, as used at the poles)."
+    )
+    events: list[Event] = Field(description="Sun/Earth rise and set events in the window, in order (max 50)")
     verdict: Verdict
+    verdict_reasons: list[str] = Field(description="Short plain-English reasons for the verdict")
 
 
 class VisibilityResponse(BaseModel):

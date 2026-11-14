@@ -138,6 +138,11 @@ class HorizonResponse(BaseModel):
     elevation: list[float] = Field(
         description="360 values; elevation[i] = terrain horizon elevation (deg) at azimuth i deg"
     )
+    # Metadata from the LOLA horizon file; all null when terrain == "flat".
+    dem_source: Optional[str] = Field(None, description="DEM file used, e.g. 'LDEM_80S_80MPP_ADJ.TIF'")
+    dem_resolution_m: Optional[float] = None
+    max_distance_km: Optional[float] = Field(None, description="How far out terrain was searched")
+    site_height_m: Optional[float] = Field(None, description="Site height above the 1737.4 km reference sphere")
 
 
 # ---------------------------------------------------------------- compare

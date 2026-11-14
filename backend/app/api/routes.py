@@ -5,7 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.core import ephemeris, sites
+from app.core import ephemeris, sites, terrain
 from app.models import (
     CompareRequest,
     CompareResponse,
@@ -66,8 +66,21 @@ def snapshot(
 
 
 @router.get("/horizon", response_model=HorizonResponse)
-def horizon(site_id: str):
-    _not_implemented()
+def horizon(site_id: str) -> HorizonResponse:
+    try:
+        site = sites.get_site(site_id)
+    except sites.SiteNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    h = terrain.get_horizon(site)
+    return HorizonResponse(
+        site_id=site.id,
+        terrain=h.terrain,
+        elevation=[round(float(v), 2) for v in h.elevation],
+        dem_source=h.meta.get("dem_source"),
+        dem_resolution_m=h.meta.get("dem_resolution_m"),
+        max_distance_km=h.meta.get("max_distance_km"),
+        site_height_m=h.meta.get("site_height_m"),
+    )
 
 
 @router.post("/compare", response_model=CompareResponse)

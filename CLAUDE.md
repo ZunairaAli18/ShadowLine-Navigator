@@ -53,9 +53,15 @@ backend/
 - This handles libration automatically. Load kernels once at startup.
 
 ## Terrain approach
-- Horizon profile = for each azimuth 0..359, the max elevation angle of surrounding terrain,
-  using angle = atan((h - h_site - d^2/(2R)) / d).
-- Only curated south pole sites have LOLA profiles. Everything else falls back to a flat 0 deg horizon
+- Horizon profile = for each azimuth 0..359, the max elevation angle of surrounding terrain out to 150 km.
+  Exact sphere formula (R = 1737400 m, d = angular distance, h0 = site height + 2 m observer height):
+  angle = atan2((R+h)*cos(d) - (R+h0), (R+h)*sin(d)).  (Small-angle form: atan((h - h0 - d^2/(2R)) / d).)
+- ALL curated sites (equatorial, far side and south pole) get LOLA horizon profiles, built offline by
+  `scripts/build_horizon.py` from two DEMs in `backend/data_raw/` (gitignored):
+  - `LDEM_80S_80MPP_ADJ.TIF` (south polar stereographic, 80 m/px) when the whole 150 km circle fits inside it,
+  - otherwise the LOLA global 64 ppd GeoTIFF (simple cylindrical).
+  CRS/transform are read from each file (rasterio + pyproj), never hardcoded.
+- Custom lat/lon points (and any site without a horizons/<id>.json file) fall back to a flat 0 deg horizon,
   and the API must return `terrain: "flat"` so the UI can say so.
 
 ## API endpoints

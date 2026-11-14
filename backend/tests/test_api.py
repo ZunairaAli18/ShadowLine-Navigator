@@ -28,7 +28,6 @@ def test_cors_allows_any_origin(client):
 def test_unimplemented_endpoints_return_501(client):
     assert client.get("/visibility", params={"site_id": "x", "start": "2026-12-01T00:00:00Z"}).status_code == 501
     assert client.get("/snapshot", params={"site_id": "x", "time": "2026-12-01T00:00:00Z"}).status_code == 501
-    assert client.get("/horizon", params={"site_id": "x"}).status_code == 501
     body = {"scenarios": [{"site_id": "x", "start": "2026-12-01T00:00:00Z"}]}
     assert client.post("/compare", json=body).status_code == 501
 

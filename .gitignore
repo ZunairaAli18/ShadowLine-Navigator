@@ -31,3 +31,9 @@ out/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Raw LOLA DEMs (large) and generated horizon plots
+backend/data_raw/
+backend/horizon_plots/
+*.tif
+*.TIF

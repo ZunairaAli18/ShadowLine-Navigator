@@ -83,7 +83,7 @@ def test_naive_datetime_treated_as_utc():
     [
         {"days": 0},
         {"days": -1},
-        {"days": 61},
+        {"days": 367},
         {"step_minutes": 4},
         {"step_minutes": 1441},
         {"start": datetime(1899, 12, 31, tzinfo=timezone.utc)},

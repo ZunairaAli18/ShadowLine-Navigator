@@ -25,11 +25,8 @@ def test_cors_allows_any_origin(client):
     assert r.headers["access-control-allow-origin"] == "*"
 
 
-def test_unimplemented_endpoints_return_501(client):
-    assert client.get("/visibility", params={"site_id": "x", "start": "2026-12-01T00:00:00Z"}).status_code == 501
-    assert client.get("/snapshot", params={"site_id": "x", "time": "2026-12-01T00:00:00Z"}).status_code == 501
-    body = {"scenarios": [{"site_id": "x", "start": "2026-12-01T00:00:00Z"}]}
-    assert client.post("/compare", json=body).status_code == 501
+def test_timing_header(client):
+    assert float(client.get("/health").headers["x-process-time-ms"]) >= 0
 
 
 def test_example_response_matches_contract():

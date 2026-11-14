@@ -4,17 +4,22 @@ Sun "up" = visible fraction >= 0.5 (center of the disk above the skyline), i.e. 
 Earth visible = earth_margin > 0 (Earth's center above the skyline, minus an optional safety margin).
 """
 
+import dataclasses
+import logging
+import threading
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
 
 import numpy as np
 
 from app.core import ephemeris, terrain
-from app.models import Site, Terrain
+from app.models import Site, Terrain, TerrainMode
+
+log = logging.getLogger("shadowline")
 
 SUN_RADIUS_KM = 696_000.0
-TerrainMode = Literal["auto", "flat"]
+CACHE_SIZE = 128
 
 
 def sun_visible_fraction(sun_margin_deg, sun_dist_km) -> np.ndarray:
@@ -110,6 +115,63 @@ def compute_visibility(site: Site, start: datetime, days: float, step_minutes: i
         earth_margin_deg=earth_margin_deg, times=p.times,
         sun_az=p.sun_az, sun_el=p.sun_el, sun_dist_km=p.sun_dist_km,
         earth_az=p.earth_az, earth_el=p.earth_el, **v,
+    )
+
+
+# ---------------------------------------------------------------- cache (Chunk 7)
+
+_cache: "OrderedDict[tuple, Visibility]" = OrderedDict()
+_cache_lock = threading.Lock()
+_stats = {"hits": 0, "misses": 0}
+
+
+def _cache_key(site, start, days, step_minutes, terrain_mode, earth_margin_deg) -> tuple:
+    start = ephemeris._to_utc(start)
+    return (site.id, round(site.lat, 4), round(site.lon, 4), start.isoformat(),
+            float(days), int(step_minutes), terrain_mode, round(float(earth_margin_deg), 4))
+
+
+def cached_visibility(site: Site, start: datetime, days: float, step_minutes: int,
+                      terrain_mode: TerrainMode = "auto", earth_margin_deg: float = 0.0) -> Visibility:
+    """compute_visibility with an in-memory LRU cache. Treat the returned arrays as read-only."""
+    key = _cache_key(site, start, days, step_minutes, terrain_mode, earth_margin_deg)
+    with _cache_lock:
+        if key in _cache:
+            _cache.move_to_end(key)
+            _stats["hits"] += 1
+            log.info("visibility cache HIT  %s", key[:6])
+            return _cache[key]
+    vis = compute_visibility(site, start, days, step_minutes, terrain_mode, earth_margin_deg)
+    with _cache_lock:
+        _stats["misses"] += 1
+        _cache[key] = vis
+        _cache.move_to_end(key)
+        while len(_cache) > CACHE_SIZE:
+            _cache.popitem(last=False)
+    log.info("visibility cache MISS %s", key[:6])
+    return vis
+
+
+def cache_info() -> dict:
+    with _cache_lock:
+        return {**_stats, "size": len(_cache), "max_size": CACHE_SIZE}
+
+
+def clear_cache() -> None:
+    with _cache_lock:
+        _cache.clear()
+        _stats.update(hits=0, misses=0)
+
+
+_SERIES = ["times", "sun_az", "sun_el", "sun_dist_km", "sun_horizon_el", "sun_margin", "sun_visible_fraction",
+           "earth_az", "earth_el", "earth_horizon_el", "earth_margin", "earth_visible"]
+
+
+def slice_visibility(vis: Visibility, i: int, n: int) -> Visibility:
+    """Sub-window of n steps starting at index i (views, no copies)."""
+    return dataclasses.replace(
+        vis, start=vis.times[i], days=n * vis.step_minutes / 1440.0,
+        **{name: getattr(vis, name)[i:i + n] for name in _SERIES},
     )
 
 

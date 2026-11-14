@@ -66,11 +66,18 @@ backend/
 
 ## API endpoints
 - `GET /health`
-- `GET /sites`
-- `GET /visibility?site_id=|lat=&lon=&start=&days=&step_minutes=` -> time series + metrics
-- `GET /snapshot?site_id=|lat=&lon=&time=` -> positions + countdowns at one moment
+- `GET /sites?region=`, `GET /sites/{site_id}`
+- `GET /visibility?site_id=|lat=&lon=&start=&days=14&step_minutes=60&terrain_mode=auto&earth_margin_deg=0`
+  -> time series + metrics (days <= 60)
+- `GET /snapshot?site_id=|lat=&lon=&time=&terrain_mode=&earth_margin_deg=` -> positions + countdowns
+  (countdowns look 30 days ahead at 30-minute steps)
 - `GET /horizon?site_id=` -> terrain profile
-- `POST /compare` -> list of scenarios in, metrics for each out
+- `POST /compare` -> 1-3 scenarios in, metrics for each out (same order, no time series)
+- `GET /best-windows?site_id=|lat=&lon=&from=&to=&mission_days=14&candidate_step_hours=12&top=5&terrain_mode=`
+  -> best mission start times in from..to (<= 180 days); one visibility run, sliding window
+- Errors: 422 bad input, 404 unknown site, 400 outside ephemeris range, 503 ephemeris not loaded.
+- compute_visibility results are cached in memory (LRU, 128 entries); every response has an
+  `X-Process-Time-Ms` header and is logged with its duration.
 
 ## Working rules
 - Build one chunk at a time. Finish each with a test or a script that prints real output.

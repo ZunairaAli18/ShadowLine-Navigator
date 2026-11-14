@@ -32,7 +32,7 @@ KERNEL_URLS = {
 VALID_START = datetime(1900, 1, 1, tzinfo=timezone.utc)
 VALID_END = datetime(2050, 1, 1, tzinfo=timezone.utc)
 
-MAX_DAYS = 60
+MAX_DAYS = 366  # API endpoints set tighter limits; MAX_POINTS still caps the work
 MIN_STEP_MINUTES = 5
 MAX_STEP_MINUTES = 1440
 MAX_POINTS = 20_000

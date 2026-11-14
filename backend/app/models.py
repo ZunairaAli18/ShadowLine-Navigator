@@ -21,6 +21,12 @@ Terrain = Literal["lola", "flat"]
 
 Verdict = Literal["good", "risky", "not_viable"]
 
+TerrainMode = Literal["auto", "flat"]
+"""'auto' = LOLA horizon if available, else flat. 'flat' = force a 0 deg horizon (for comparisons)."""
+
+MAX_WINDOW_DAYS = 60       # longest /visibility or /compare window
+MAX_BEST_RANGE_DAYS = 180  # longest /best-windows search range (from..to)
+
 Region = Literal["equatorial", "far_side", "south_polar", "south_pole", "north_polar", "north_pole"]
 """equatorial = |lat| < 60; *_polar = 60..80; *_pole = 80..90. far_side is set by hand in the catalog."""
 
@@ -59,6 +65,7 @@ class SunSeries(BaseModel):
 
     az: list[float]
     el: list[float]
+    horizon_el: list[float] = Field(description="Terrain horizon elevation at the Sun's azimuth (0 for flat)")
     visible_fraction: list[float] = Field(description="Fraction of the solar disk above the terrain horizon, 0-1")
 
 
@@ -67,7 +74,8 @@ class EarthSeries(BaseModel):
 
     az: list[float]
     el: list[float]
-    visible: list[bool] = Field(description="Earth center above the terrain horizon")
+    horizon_el: list[float] = Field(description="Terrain horizon elevation at Earth's azimuth (0 for flat)")
+    visible: list[bool] = Field(description="Earth center above the terrain horizon (minus earth_margin_deg)")
 
 
 EventType = Literal["sunrise", "sunset", "earthrise", "earthset"]
@@ -184,11 +192,16 @@ class Scenario(BaseModel):
     lat: Optional[float] = Field(None, ge=-90, le=90)
     lon: Optional[float] = Field(None, ge=-180, le=360)
     start: datetime
-    days: float = Field(30, gt=0, le=366)
+    days: float = Field(14, gt=0, le=MAX_WINDOW_DAYS)
     step_minutes: int = Field(60, ge=5, le=1440)
+    terrain_mode: TerrainMode = "auto"
+    earth_margin_deg: float = Field(0.0, ge=0, le=30)
 
     @model_validator(mode="after")
     def _check_location(self):
+        has_coords = self.lat is not None or self.lon is not None
+        if self.site_id is not None and has_coords:
+            raise ValueError("give either site_id or lat+lon, not both")
         if self.site_id is None and (self.lat is None or self.lon is None):
             raise ValueError("give either site_id, or both lat and lon")
         if self.lon is not None:
@@ -212,6 +225,35 @@ class ScenarioResult(BaseModel):
 
 class CompareResponse(BaseModel):
     results: list[ScenarioResult] = Field(description="Same order as the request's scenarios")
+
+
+# ---------------------------------------------------------------- best windows
+
+
+class BestWindow(BaseModel):
+    start: datetime
+    end: datetime
+    verdict: Verdict
+    verdict_reasons: list[str]
+    sun_pct: float
+    earth_pct: float
+    both_pct: float
+    longest_dark_hours: float
+
+
+class BestWindowsResponse(BaseModel):
+    site: Site
+    terrain: Terrain
+    range_start: datetime = Field(description="Earliest mission start considered (the 'from' parameter)")
+    range_end: datetime = Field(description="Latest mission start considered (the 'to' parameter)")
+    mission_days: float
+    candidate_step_hours: float
+    min_separation_hours: float = Field(description="Picked starts are at least this far apart (0 = no spreading)")
+    candidates_evaluated: int
+    windows: list[BestWindow] = Field(
+        description="Best first: verdict (good > risky > not_viable), then both_pct, then shortest darkness. "
+        "May hold fewer than `top` if the range can't fit that many well-separated starts."
+    )
 
 
 # ---------------------------------------------------------------- misc

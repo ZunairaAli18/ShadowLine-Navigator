@@ -1,18 +1,28 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
-import { Card, SectionHeading } from "@/components/ui";
+import { Navigator } from "@/components/navigator/Navigator";
 
 export const metadata: Metadata = { title: "Navigator" };
 
+function NavigatorFallback() {
+  return (
+    <div className="mx-auto max-w-7xl space-y-5 px-4 py-8 sm:px-6" aria-busy>
+      <p className="eyebrow">Navigator</p>
+      <div className="glass h-40 animate-pulse rounded-2xl" />
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="glass aspect-[16/9] animate-pulse rounded-2xl" />
+        <div className="glass h-64 animate-pulse rounded-2xl" />
+      </div>
+    </div>
+  );
+}
+
+/** The navigator reads its state from the URL (useSearchParams), so it renders inside Suspense. */
 export default function NavigatorPage() {
   return (
-    <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
-      <SectionHeading
-        eyebrow="Navigator"
-        title="Plan a landing"
-        description="Pick a site and a date range to see sunlight, Earth visibility and a verdict."
-      />
-      <Card className="mt-8 text-muted">Coming in the next chunk.</Card>
-    </div>
+    <Suspense fallback={<NavigatorFallback />}>
+      <Navigator />
+    </Suspense>
   );
 }

@@ -17,7 +17,12 @@ export type NavState = {
   terrain: TerrainChoice;
   t: Date; // selected time
   tab: NavTab | null;
+  /** Tab settings kept in the URL as-is (cmp = compare scenarios; b* = best-dates inputs). */
+  extras: Partial<Record<ExtraKey, string>>;
 };
+
+export const EXTRA_KEYS = ["cmp", "bsite", "bfrom", "bto", "bdays", "bterrain", "bgap"] as const;
+export type ExtraKey = (typeof EXTRA_KEYS)[number];
 
 export const DEFAULT_SITE = "shackleton-ridge";
 export const DEFAULT_DAYS = 14;
@@ -78,8 +83,13 @@ export function parseNavState(params: URLSearchParams, now: Date = new Date()): 
   if (t < start || t >= end) t = start;
   const tabRaw = params.get("tab");
   const tab = TABS.includes(tabRaw as NavTab) ? (tabRaw as NavTab) : null;
+  const extras: NavState["extras"] = {};
+  for (const k of EXTRA_KEYS) {
+    const v = params.get(k);
+    if (v) extras[k] = v;
+  }
 
-  return { location, start, days, step, terrain, t, tab };
+  return { location, start, days, step, terrain, t, tab, extras };
 }
 
 /** ISO without milliseconds, e.g. 2026-12-01T00:00:00Z. */
@@ -100,6 +110,10 @@ export function serializeNavState(s: NavState): URLSearchParams {
   q.set("terrain", s.terrain);
   if (s.t.getTime() !== s.start.getTime()) q.set("t", isoUtc(s.t));
   if (s.tab) q.set("tab", s.tab);
+  for (const k of EXTRA_KEYS) {
+    const v = s.extras[k];
+    if (v) q.set(k, v);
+  }
   return q;
 }
 

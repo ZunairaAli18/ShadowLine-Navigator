@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, getHorizon, getVisibility, type VisibilityResponse } from "@/lib/api";
+import { allEvents, type CountdownSeries, type TimelineEvent } from "@/lib/countdowns";
 import { isoUtc, type NavState } from "@/lib/navState";
 
 const DEBOUNCE_MS = 300;
@@ -115,5 +116,21 @@ export function useNavigatorData(state: NavState) {
     [data, n],
   );
 
-  return { data, horizon, times, n, status, retry, sunAt, earthAt, metrics: data?.metrics ?? null };
+  // Derived series for client-side countdowns/timeline (recomputed only when the data changes).
+  const series = useMemo<CountdownSeries | null>(() => {
+    if (!data) return null;
+    const sunMargin = data.sun.el.map((e, i) => e - data.sun.horizon_el[i]);
+    const earthMargin = data.earth.el.map((e, i) => e - data.earth.horizon_el[i]);
+    return {
+      timesMs: times.map((t) => t.getTime()),
+      sunMargin,
+      sunFraction: data.sun.visible_fraction,
+      sunUp: data.sun.visible_fraction.map((f) => f >= 0.5),
+      earthMargin,
+      earthVisible: data.earth.visible,
+    };
+  }, [data, times]);
+  const events = useMemo<TimelineEvent[]>(() => (series ? allEvents(series) : []), [series]);
+
+  return { data, horizon, times, n, status, retry, sunAt, earthAt, series, events, metrics: data?.metrics ?? null };
 }

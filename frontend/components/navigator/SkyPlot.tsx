@@ -19,6 +19,8 @@ import {
   type PanoGeom,
   type XY,
 } from "@/lib/skyMath";
+import { diskFraction } from "@/lib/countdowns";
+import { interpAt, interpAz, timeAt } from "@/lib/interp";
 import { useReducedMotionPref } from "@/lib/useCapable";
 
 /**
@@ -32,8 +34,10 @@ import { useReducedMotionPref } from "@/lib/useCapable";
 export type SkyView = "dome" | "panorama";
 export type SkySeries = {
   times: Date[];
-  sun: { az: number[]; el: number[]; fraction: number[] };
-  earth: { az: number[]; el: number[]; visible: boolean[] };
+  /** horizonEl (optional): per-step skyline height behind the body, from the backend. Used between steps so
+   *  the plot agrees exactly with the countdown logic; falls back to the 360° profile. */
+  sun: { az: number[]; el: number[]; fraction: number[]; horizonEl?: number[] };
+  earth: { az: number[]; el: number[]; visible: boolean[]; horizonEl?: number[] };
 };
 
 type Props = SkySeries & {
@@ -41,7 +45,10 @@ type Props = SkySeries & {
   terrain: "lola" | "flat";
   /** Changes when the site changes (skyline crossfades). */
   siteKey: string;
+  /** Selected position: a fractional index (3.5 = halfway between steps 3 and 4). */
   index: number;
+  /** Follow the position frame by frame with no spring (during playback). */
+  instant?: boolean;
   className?: string;
 };
 
@@ -327,12 +334,13 @@ function EarthMarker({ p, r, visible, clipId, wrap, reduced, labelUp }: MarkerPr
 
 // ---------------------------------------------------------------- main
 
-export function SkyPlot({ horizon, terrain, siteKey, times, sun, earth, index, className = "" }: Props) {
+export function SkyPlot({ horizon, terrain, siteKey, times, sun, earth, index, instant = false, className = "" }: Props) {
   const clipId = useId().replace(/:/g, "") + "-sky";
   const reduced = useReducedMotionPref();
   const series = useMemo(() => ({ times, sun, earth }), [times, sun, earth]);
   const n = times.length;
-  const i = Math.min(Math.max(0, index), Math.max(0, n - 1));
+  const timesMs = useMemo(() => times.map((t) => t.getTime()), [times]);
+  const i = Math.round(Math.min(Math.max(0, index), Math.max(0, n - 1)));
 
   const maxSunEl = useMemo(() => (n ? Math.max(...sun.el) : 90), [sun.el, n]);
   const autoView: SkyView = maxSunEl < 10 ? "panorama" : "dome";
@@ -370,10 +378,25 @@ export function SkyPlot({ horizon, terrain, siteKey, times, sun, earth, index, c
     return <div className={`grid aspect-square place-items-center text-muted ${className}`}>No data yet.</div>;
   }
 
-  const sunP = built.sunPts[i];
-  const earthP = built.earthPts[i];
-  const sunVisible = sun.fraction[i] >= 0.5;
-  const earthVisible = earth.visible[i];
+  // Fractional index -> interpolated positions (smooth playback/scrubbing; az goes the short way round).
+  const p = Math.min(Math.max(0, index), Math.max(0, n - 1));
+  const atSample = Math.abs(p - Math.round(p)) < 1e-6;
+  const sAz = interpAz(sun.az, p);
+  const sEl = interpAt(sun.el, p);
+  const sFrac = interpAt(sun.fraction, p);
+  const eAz = interpAz(earth.az, p);
+  const eEl = interpAt(earth.el, p);
+  const toXY = (az: number, el: number) => (view === "dome" ? domeXY(az, el, DOME) : panoXY(az, el, panoGeom(range)));
+  const sunP = toXY(sAz, sEl);
+  const earthP = toXY(eAz, eEl);
+  // Between steps, follow the interpolated margin (same rule as countdowns), not the interpolated fraction.
+  const sHz = sun.horizonEl?.length === n ? interpAt(sun.horizonEl, p) : horizonAtSafe(horizon, sAz);
+  const eHz = earth.horizonEl?.length === n ? interpAt(earth.horizonEl, p) : horizonAtSafe(horizon, eAz);
+  const sMargin = sEl - sHz;
+  const sunVisible = atSample ? sun.fraction[i] >= 0.5 : sMargin >= 0;
+  const sunFracShown = atSample ? sFrac : diskFraction(sMargin);
+  const earthVisible = atSample ? earth.visible[i] : eEl - eHz > 0;
+  const selectedMs = timeAt(timesMs, p);
   const wrap = view === "panorama" ? panoGeom(range).width : null;
   const sunR = SUN_RADIUS_DEG * built.pxPerDeg;
   const earthR = EARTH_RADIUS_DEG * built.pxPerDeg;
@@ -431,7 +454,7 @@ export function SkyPlot({ horizon, terrain, siteKey, times, sun, earth, index, c
           viewBox={`0 0 ${vbW} ${vbH}`}
           className={`block w-full select-none ${view === "dome" ? "mx-auto max-w-[560px]" : ""}`}
           role="img"
-          aria-label={`${view === "dome" ? "Dome" : "Panorama"} sky plot at ${fmtTime(times[i])}. Sun azimuth ${fmtAz(sun.az[i])}, elevation ${fmtEl(sun.el[i])}, ${sunVisible ? "visible" : "hidden"}. Earth azimuth ${fmtAz(earth.az[i])}, elevation ${fmtEl(earth.el[i])}, ${earthVisible ? "visible" : "out of view"}.`}
+          aria-label={`${view === "dome" ? "Dome" : "Panorama"} sky plot at ${fmtTime(new Date(selectedMs))}. Sun azimuth ${fmtAz(sAz)}, elevation ${fmtEl(sEl)}, ${sunVisible ? "visible" : "hidden"}. Earth azimuth ${fmtAz(eAz)}, elevation ${fmtEl(eEl)}, ${earthVisible ? "visible" : "out of view"}.`}
           onPointerMove={onPointer}
           onPointerDown={onPointer}
           onPointerLeave={() => setHover(null)}
@@ -455,8 +478,8 @@ export function SkyPlot({ horizon, terrain, siteKey, times, sun, earth, index, c
 
           <StaticLayer view={view} range={range} built={built} siteKey={siteKey} clipId={clipId} reduced={reduced} />
 
-          <EarthMarker p={earthP} r={earthR} visible={earthVisible} clipId={clipId} wrap={wrap} reduced={reduced} labelUp={labelUp(earthP)} />
-          <SunMarker p={sunP} r={sunR} visible={sunVisible} clipId={clipId} wrap={wrap} reduced={reduced} labelUp={labelUp(sunP)} />
+          <EarthMarker p={earthP} r={earthR} visible={earthVisible} clipId={clipId} wrap={wrap} reduced={reduced || instant} labelUp={labelUp(earthP)} />
+          <SunMarker p={sunP} r={sunR} visible={sunVisible} clipId={clipId} wrap={wrap} reduced={reduced || instant} labelUp={labelUp(sunP)} />
 
           {hoverPt && <circle cx={hoverPt.x} cy={hoverPt.y} r={5} fill="none" stroke="var(--color-text)" strokeWidth={1.2} />}
         </svg>
@@ -485,19 +508,19 @@ export function SkyPlot({ horizon, terrain, siteKey, times, sun, earth, index, c
         <div>
           <span className="text-sun">☀ Sun</span>{" "}
           <span className="text-lunar-300">
-            az {fmtAz(sun.az[i])} el {fmtEl(sun.el[i])}
+            az {fmtAz(sAz)} el {fmtEl(sEl)}
           </span>
           <div className="text-lunar-500">
-            horizon {fmtEl(horizonAtSafe(horizon, sun.az[i]))} · {Math.round(sun.fraction[i] * 100)}% of disk visible
+            horizon {fmtEl(sHz)} · {Math.round(Math.min(1, Math.max(0, sunFracShown)) * 100)}% of disk visible
           </div>
         </div>
         <div>
           <span className="text-earth">◉ Earth</span>{" "}
           <span className="text-lunar-300">
-            az {fmtAz(earth.az[i])} el {fmtEl(earth.el[i])}
+            az {fmtAz(eAz)} el {fmtEl(eEl)}
           </span>
           <div className="text-lunar-500">
-            horizon {fmtEl(horizonAtSafe(horizon, earth.az[i]))} · {earthVisible ? "in view" : "out of view"}
+            horizon {fmtEl(eHz)} · {earthVisible ? "in view" : "out of view"}
           </div>
         </div>
       </div>

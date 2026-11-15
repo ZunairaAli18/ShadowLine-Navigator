@@ -15,6 +15,7 @@ describe("parseNavState defaults", () => {
     expect(s.terrain).toBe("auto");
     expect(s.t.getTime()).toBe(s.start.getTime());
     expect(s.tab).toBeNull();
+    expect(s.extras).toEqual({});
   });
 });
 
@@ -51,8 +52,10 @@ describe("parseNavState values", () => {
 });
 
 describe("serializeNavState", () => {
-  it("round-trips", () => {
-    const q = "site=im-2&start=2026-12-01T00:00:00Z&days=7&step=30&terrain=auto&t=2026-12-02T12:30:00Z&tab=compare";
+  it("round-trips, including tab extras", () => {
+    const q =
+      "site=im-2&start=2026-12-01T00:00:00Z&days=7&step=30&terrain=auto&t=2026-12-02T12:30:00Z&tab=compare" +
+      "&cmp=im-2~2026-12-01T00%3A00%3A00Z~14~auto&bfrom=2026-12-01";
     const s = parse(q);
     expect(serializeNavState(s).toString()).toBe(new URLSearchParams(q).toString());
     expect(parseNavState(serializeNavState(s), NOW)).toEqual(s);

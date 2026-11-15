@@ -503,6 +503,13 @@ export function SkyPlot({ horizon, terrain, siteKey, times, sun, earth, index, i
       </div>
       </div>
 
+      {view === "panorama" && (
+        <p className="mt-2 text-[11px] leading-relaxed text-lunar-400">
+          <span className="font-mono text-lunar-300">↔</span> Left to right: compass direction around the lander.{" "}
+          <span className="font-mono text-lunar-300">↕</span> Up/down: height above flat ground.
+        </p>
+      )}
+
       {/* HUD readout */}
       <div className="glass mt-3 grid gap-x-6 gap-y-1 rounded-xl px-4 py-3 font-mono text-[11px] uppercase tracking-[0.12em] sm:grid-cols-2" aria-live="off">
         <div>

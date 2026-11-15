@@ -19,6 +19,19 @@ import { type Location, type NavState, type NavTab, type TerrainChoice } from "@
 
 const URL_WRITE_MS = 250; // ~4 writes/s while scrubbing or playing
 
+const fmtLatLon = (lat: number, lon: number) =>
+  `${Math.abs(lat).toFixed(2)}°${lat < 0 ? "S" : "N"}, ${Math.abs(lon).toFixed(2)}°${lon < 0 ? "W" : "E"}`;
+
+/** Tiny "you are here" marker: a dot inside a ring. */
+function HereIcon() {
+  return (
+    <svg viewBox="0 0 12 12" className="mt-[3px] h-3 w-3 shrink-0 text-accent" role="img" aria-label="You are here">
+      <circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" strokeOpacity={0.6} />
+      <circle cx="6" cy="6" r="2" fill="currentColor" />
+    </svg>
+  );
+}
+
 const fmtTime = (ms: number) => `${new Date(ms).toISOString().slice(0, 16).replace("T", " ")} UTC`;
 
 export function Navigator() {
@@ -192,8 +205,20 @@ export function Navigator() {
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <Card className="relative min-w-0 p-4 sm:p-5" aria-busy={loading}>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-lg">Sky</h2>
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+            <div className="min-w-0">
+              <h2 className="text-lg">Sky</h2>
+              {data && (
+                <p className="mt-0.5 flex items-start gap-1.5 text-xs text-muted">
+                  <HereIcon />
+                  <span>
+                    View from{" "}
+                    <span className="text-lunar-200">{data.site.id === "custom" ? "a custom point" : data.site.name}</span>{" "}
+                    <span className="font-mono text-lunar-400">({fmtLatLon(data.site.lat, data.site.lon)})</span> · looking all around from the lander
+                  </span>
+                </p>
+              )}
+            </div>
             {selectedMs !== null && <span className="font-mono text-xs text-lunar-300">{fmtTime(selectedMs)}</span>}
           </div>
           {data && horizon ? (

@@ -102,3 +102,14 @@ describe("helpers", () => {
     expect(indexForTime(new Date("2027-01-01T00:00:00Z"), start, 60, 100)).toBe(99);
   });
 });
+
+describe("sky view (F12)", () => {
+  it("parses and serializes view=terrain; anything else is the sky plot", () => {
+    const s = parseNavState(new URLSearchParams("site=im-2&view=terrain"));
+    expect(s.view).toBe("terrain");
+    expect(serializeNavState(s).get("view")).toBe("terrain");
+    const d = parseNavState(new URLSearchParams("site=im-2&view=banana"));
+    expect(d.view).toBeNull();
+    expect(serializeNavState(d).has("view")).toBe(false);
+  });
+});

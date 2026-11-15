@@ -249,3 +249,17 @@ export function getGlobeGeometry(params: GlobeGeometryParams, opts?: Opts): Prom
 export function getHealth(opts?: Opts): Promise<Schemas["HealthResponse"]> {
   return request(`/health`, opts);
 }
+
+export type TerrainPatch = Schemas["TerrainPatchResponse"];
+
+/** 3D terrain patch metadata (404 -> ApiError for sites without a patch). */
+export function getTerrainPatch(siteId: string, opts?: Opts): Promise<TerrainPatch> {
+  return request(`/terrain-patch${toQuery({ site_id: siteId })}`, opts);
+}
+
+/** The patch's binary height grid (bin_url from getTerrainPatch). Uses the same cold-start retries. */
+export async function getTerrainHeights(binUrl: string, opts?: Opts): Promise<ArrayBuffer> {
+  const res = await fetchWaking(`${API_URL}${binUrl}`, { signal: opts?.signal });
+  if (!res.ok) throw new ApiError(`Couldn't load the terrain heights (HTTP ${res.status}).`, res.status);
+  return res.arrayBuffer();
+}

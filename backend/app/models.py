@@ -51,6 +51,9 @@ class Site(BaseModel):
     why_interesting: Optional[str] = Field(None, description="1-2 sentences on why this site matters for planning")
     coords_verified: bool = Field(False, description="True if lat/lon were checked against an authoritative source")
     has_terrain: bool = Field(description="True if a LOLA horizon profile exists for this site (computed, not stored)")
+    has_terrain_patch: bool = Field(
+        description="True if a 3D terrain patch (40 km LOLA height grid) exists for this site (computed, not stored)"
+    )
 
 
 class SitesResponse(BaseModel):
@@ -179,6 +182,28 @@ class HorizonResponse(BaseModel):
     dem_resolution_m: Optional[float] = None
     max_distance_km: Optional[float] = Field(None, description="How far out terrain was searched")
     site_height_m: Optional[float] = Field(None, description="Site height above the 1737.4 km reference sphere")
+
+
+class TerrainPatchResponse(BaseModel):
+    """Metadata of a 3D terrain patch; the heights are a separate binary file at bin_url."""
+
+    site_id: str
+    lat: float
+    lon: float
+    grid_size: int = Field(description="Samples per side (square grid)")
+    spacing_m: float = Field(description="Distance between neighbouring samples, metres")
+    extent_m: float = Field(description="Side length of the patch, metres (centred on the site)")
+    z_scale: float = Field(description="height_m = uint16 value * z_scale + z_offset")
+    z_offset: float
+    z_min: float
+    z_max: float
+    site_height_m: float = Field(description="Site height above the 1737.4 km reference sphere")
+    frame: Literal["ENU"] = Field(description="x = east, y = north, z = up (m), origin = site surface; z includes curvature")
+    row_order: str
+    dem_source: str
+    dem_resolution_m: Optional[float] = None
+    credit: str
+    bin_url: str = Field(description="Path of the uint16 little-endian height grid, row-major from the north-west")
 
 
 # ---------------------------------------------------------------- compare

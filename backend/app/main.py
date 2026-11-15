@@ -8,10 +8,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
 from app import config
-from app.core import ephemeris, sites, warmup
+from app.core import ephemeris, sites, terrain_patch, warmup
 
 log = logging.getLogger("shadowline")
 if not log.handlers:  # uvicorn doesn't configure our logger; give it a plain console handler
@@ -63,6 +64,9 @@ async def timing(request: Request, call_next):
     response = await call_next(request)
     ms = (time.perf_counter() - t0) * 1000
     response.headers["X-Process-Time-Ms"] = f"{ms:.1f}"
+    if request.url.path.startswith("/static/") and response.status_code == 200:
+        # Static URLs carry a content hash (?v=...), so they can be cached for a year.
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     query = f"?{request.url.query}" if request.url.query else ""
     log.info("%s %s%s -> %d in %.1f ms", request.method, request.url.path, query, response.status_code, ms)
     return response
@@ -96,3 +100,7 @@ async def _ephemeris_missing(request: Request, exc: ephemeris.EphemerisNotLoaded
 
 
 app.include_router(router)
+
+# 3D terrain patch heights (committed .bin files), e.g. /static/terrain/im-2.bin
+terrain_patch.PATCHES_DIR.mkdir(parents=True, exist_ok=True)
+app.mount(terrain_patch.STATIC_PREFIX, StaticFiles(directory=terrain_patch.PATCHES_DIR), name="terrain")

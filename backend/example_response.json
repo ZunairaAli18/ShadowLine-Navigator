@@ -9,7 +9,8 @@
     "description": "A raised ridge running from the rim of Shackleton crater, right next to the south pole.",
     "why_interesting": "High ground near the pole gets sunlight for most of the year and sits next to permanently shadowed craters that may hold ice.",
     "coords_verified": true,
-    "has_terrain": true
+    "has_terrain": true,
+    "has_terrain_patch": true
   },
   "terrain": "lola",
   "start": "2026-12-01T00:00:00Z",

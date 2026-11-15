@@ -72,6 +72,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/terrain-patch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Terrain Patch
+         * @description 3D terrain patch metadata (40 km LOLA height grid around the site) and the URL of its binary heights.
+         */
+        get: operations["get_terrain_patch_terrain_patch_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/visibility": {
         parameters: {
             query?: never;
@@ -596,6 +616,11 @@ export interface components {
              * @description True if a LOLA horizon profile exists for this site (computed, not stored)
              */
             has_terrain: boolean;
+            /**
+             * Has Terrain Patch
+             * @description True if a 3D terrain patch (40 km LOLA height grid) exists for this site (computed, not stored)
+             */
+            has_terrain_patch: boolean;
         };
         /** SitesResponse */
         SitesResponse: {
@@ -638,6 +663,68 @@ export interface components {
              * @description Fraction of the solar disk above the terrain horizon, 0-1
              */
             visible_fraction: number[];
+        };
+        /**
+         * TerrainPatchResponse
+         * @description Metadata of a 3D terrain patch; the heights are a separate binary file at bin_url.
+         */
+        TerrainPatchResponse: {
+            /** Site Id */
+            site_id: string;
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /**
+             * Grid Size
+             * @description Samples per side (square grid)
+             */
+            grid_size: number;
+            /**
+             * Spacing M
+             * @description Distance between neighbouring samples, metres
+             */
+            spacing_m: number;
+            /**
+             * Extent M
+             * @description Side length of the patch, metres (centred on the site)
+             */
+            extent_m: number;
+            /**
+             * Z Scale
+             * @description height_m = uint16 value * z_scale + z_offset
+             */
+            z_scale: number;
+            /** Z Offset */
+            z_offset: number;
+            /** Z Min */
+            z_min: number;
+            /** Z Max */
+            z_max: number;
+            /**
+             * Site Height M
+             * @description Site height above the 1737.4 km reference sphere
+             */
+            site_height_m: number;
+            /**
+             * Frame
+             * @description x = east, y = north, z = up (m), origin = site surface; z includes curvature
+             * @constant
+             */
+            frame: "ENU";
+            /** Row Order */
+            row_order: string;
+            /** Dem Source */
+            dem_source: string;
+            /** Dem Resolution M */
+            dem_resolution_m?: number | null;
+            /** Credit */
+            credit: string;
+            /**
+             * Bin Url
+             * @description Path of the uint16 little-endian height grid, row-major from the north-west
+             */
+            bin_url: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -782,6 +869,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HorizonResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_terrain_patch_terrain_patch_get: {
+        parameters: {
+            query: {
+                site_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerrainPatchResponse"];
                 };
             };
             /** @description Validation Error */

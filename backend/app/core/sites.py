@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 from typing import Optional
 
+from app.core import terrain_patch
 from app.models import Region, Site, normalize_lon
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
@@ -24,13 +25,15 @@ _catalog: Optional[dict[str, Site]] = None
 
 
 def read_catalog(catalog_path: Path = CATALOG_PATH, horizons_dir: Path = HORIZONS_DIR) -> dict[str, Site]:
-    """Read sites.json; has_terrain = a horizons/<id>.json file exists."""
+    """Read sites.json; has_terrain = a horizons/<id>.json file exists; has_terrain_patch = a 3D patch exists."""
     raw = json.loads(Path(catalog_path).read_text(encoding="utf-8"))
     sites = {}
     for entry in raw:
-        if "has_terrain" in entry:
-            raise ValueError(f"{entry['id']}: has_terrain is computed, don't put it in sites.json")
-        site = Site(**entry, has_terrain=(Path(horizons_dir) / f"{entry['id']}.json").exists())
+        for computed in ("has_terrain", "has_terrain_patch"):
+            if computed in entry:
+                raise ValueError(f"{entry['id']}: {computed} is computed, don't put it in sites.json")
+        site = Site(**entry, has_terrain=(Path(horizons_dir) / f"{entry['id']}.json").exists(),
+                    has_terrain_patch=terrain_patch.has_patch(entry["id"]))
         if site.id in sites:
             raise ValueError(f"duplicate site id in catalog: {site.id}")
         sites[site.id] = site
@@ -98,5 +101,6 @@ def resolve_site(site_id: Optional[str] = None, lat: Optional[float] = None, lon
         lon=lon,
         region=region_for_lat(lat),
         has_terrain=False,
+        has_terrain_patch=False,
         coords_verified=False,
     )

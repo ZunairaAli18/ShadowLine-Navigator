@@ -29,9 +29,11 @@ backend/
     data/
       sites.json         curated landing sites
       horizons/          <site_id>.json terrain horizon profiles (360 values)
+      terrain_patches/   <site_id>.bin (uint16 heights, ENU) + .json (metadata); committed, served at /static/terrain/
       kernels/           ephemeris files (de421.bsp, moon frame files) - gitignored
   scripts/
     build_horizon.py     LOLA DEM -> horizon profile (offline)
+    build_terrain_patch.py  LOLA polar DEM -> 40 km 3D terrain patch (offline; shackleton-ridge, im-2)
     validate_horizons.py compare our output against the JPL Horizons API
   tests/
 ```
@@ -72,6 +74,7 @@ backend/
 - `GET /snapshot?site_id=|lat=&lon=&time=&terrain_mode=&earth_margin_deg=` -> positions + countdowns
   (countdowns look 30 days ahead at 30-minute steps)
 - `GET /horizon?site_id=` -> terrain profile
+- `GET /terrain-patch?site_id=` -> 3D patch metadata + `bin_url` (404 if none); `Site.has_terrain_patch`
 - `POST /compare` -> 1-3 scenarios in, metrics for each out (same order, no time series)
 - `GET /best-windows?site_id=|lat=&lon=&from=&to=&mission_days=14&candidate_step_hours=12&top=5&terrain_mode=`
   -> best mission start times in from..to (<= 180 days); one visibility run, sliding window

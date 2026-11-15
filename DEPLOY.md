@@ -123,6 +123,9 @@ Do this on the Vercel URL, first in a normal window and then in a **private wind
 - [ ] **Compare** tab: each preset button loads 2–3 scenarios side by side.
 - [ ] **Best dates** tab: site `apollo-11`, range **1 Dec 2026 – 31 Jan 2027** → the top windows include
       **15 Dec** and **13 Jan**.
+- [ ] **3D terrain** (desktop): on `/app?site=shackleton-ridge`, switch the Sky panel to **3D terrain**; the
+      40 km terrain loads with shadows; **Lander's eye** shows the skyline, Sun and Earth. (`/terrain-patch?site_id=im-2`
+      on the API returns JSON with a `bin_url`; the patch files are committed, nothing to configure.)
 - [ ] **Moon map** tab: 3D globe with labels on desktop; 2D map on a phone. Switching tabs leaves no errors.
 - [ ] **Simple / Expert** toggle: Expert shows the Earth margin and step fields, the raw horizon and data
       table; **⬇ Time series CSV** downloads `shadowline_<site>_<date>_14d.csv`.

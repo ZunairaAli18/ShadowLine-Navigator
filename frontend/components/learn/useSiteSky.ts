@@ -18,7 +18,7 @@ export function useSiteSky(siteId: string, start: Date, days: number) {
       t: new Date(startMs),
       tab: null,
       mode: null,
-      earthMargin: 0,
+      earthMargin: 0, view: null,
       extras: {},
     }),
     [siteId, startMs, days],

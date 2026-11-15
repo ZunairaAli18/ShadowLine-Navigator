@@ -10,7 +10,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.core import ephemeris, metrics, sites, terrain, visibility
+from app.core import ephemeris, metrics, sites, terrain, terrain_patch, visibility
 from app.models import (
     MAX_BEST_RANGE_DAYS,
     MAX_WINDOW_DAYS,
@@ -32,6 +32,7 @@ from app.models import (
     SnapshotResponse,
     SunSeries,
     TerrainMode,
+    TerrainPatchResponse,
     VisibilityResponse,
 )
 
@@ -85,6 +86,19 @@ def horizon(site_id: str) -> HorizonResponse:
         max_distance_km=h.meta.get("max_distance_km"),
         site_height_m=h.meta.get("site_height_m"),
     )
+
+
+@router.get("/terrain-patch", response_model=TerrainPatchResponse)
+def get_terrain_patch(site_id: str) -> TerrainPatchResponse:
+    """3D terrain patch metadata (40 km LOLA height grid around the site) and the URL of its binary heights."""
+    site = sites.get_site(site_id)
+    if not terrain_patch.has_patch(site.id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"No 3D terrain patch for '{site.id}'. 3D terrain is available for Shackleton ridge and IM-2.",
+        )
+    return TerrainPatchResponse(**{k: v for k, v in terrain_patch.get_meta(site.id).items()
+                                   if k in TerrainPatchResponse.model_fields})
 
 
 # ---------------------------------------------------------------- visibility

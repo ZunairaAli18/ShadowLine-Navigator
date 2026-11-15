@@ -1,0 +1,20 @@
+{
+ "site_id": "shackleton-ridge",
+ "lat": -89.45,
+ "lon": -137.3,
+ "grid_size": 512,
+ "spacing_m": 78.2779,
+ "extent_m": 40000.0,
+ "z_scale": 0.07575178625886847,
+ "z_offset": -4961.817988560535,
+ "z_min": -4961.82,
+ "z_max": 2.58,
+ "site_height_m": 1954.4,
+ "frame": "ENU",
+ "axes": "x = east, y = north, z = up (metres), origin = site surface point; z includes curvature",
+ "row_order": "row-major from the north-west corner (row 0 = north edge, col 0 = west edge)",
+ "encoding": "uint16 little-endian; height_m = value * z_scale + z_offset",
+ "dem_source": "LDEM_80S_80MPP_ADJ.tiff",
+ "dem_resolution_m": 80.0,
+ "credit": "NASA LRO LOLA, NASA GSFC Planetary Geodesy Data Archive (PGDA)"
+}

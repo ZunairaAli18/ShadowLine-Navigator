@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Collapse } from "@/components/fx/Collapse";
@@ -22,6 +23,7 @@ import { stateAt } from "@/lib/countdowns";
 import { clampPos, interpAt, posForTime, timeAt } from "@/lib/interp";
 import { type Location, type NavMode, type NavState, type NavTab, type TerrainChoice } from "@/lib/navState";
 import { useApiWaking } from "@/lib/useApiWaking";
+import { useCapable, useReducedMotionPref } from "@/lib/useCapable";
 import { storeMode, useStoredMode } from "@/lib/useStoredMode";
 
 const URL_WRITE_MS = 250; // ~4 writes/s while scrubbing or playing
@@ -38,6 +40,14 @@ function HereIcon() {
     </svg>
   );
 }
+
+/** three.js and the terrain patch only load when the 3D terrain view opens (no SSR). */
+const TerrainView = dynamic(() => import("@/components/navigator/TerrainView"), {
+  ssr: false,
+  loading: () => <div className="grid aspect-[16/9] animate-pulse place-items-center rounded-xl bg-bg/40 text-sm text-muted">Loading the 3D view…</div>,
+});
+
+const TERRAIN_TIP = "3D terrain available for Shackleton ridge and IM-2 on desktop";
 
 const fmtTime = (ms: number) => `${new Date(ms).toISOString().slice(0, 16).replace("T", " ")} UTC`;
 
@@ -180,6 +190,23 @@ export function Navigator() {
 
   // ---- playback (F5)
   const play = usePlayback({ n, stepMinutes: stepMin, pos, seek });
+
+  // ---- Sky panel view (F12): sky plot or 3D terrain (patch sites, capable devices, real terrain only)
+  const capable = useCapable();
+  const reduced = useReducedMotionPref();
+  const patchSite = data?.site.has_terrain_patch ? data.site.id : null;
+  const [terrainError, setTerrainError] = useState<{ site: string; message: string } | null>(null);
+  const terrainFailed = terrainError !== null && terrainError.site === patchSite;
+  const terrainAvailable = capable && patchSite !== null && data?.terrain === "lola" && !terrainFailed;
+  const terrainTip = !capable || patchSite === null ? TERRAIN_TIP : data?.terrain !== "lola" ? "Switch Horizon to Real terrain to use the 3D view" : terrainFailed ? "3D terrain couldn't start here" : "";
+  const showTerrain = state.view === "terrain" && terrainAvailable;
+  const setView = useCallback((v: "terrain" | null) => update({ view: v }, { replace: true }), [update]);
+  const onTerrainUnavailable = useCallback(
+    (message: string) => {
+      if (patchSite) setTerrainError({ site: patchSite, message });
+    },
+    [patchSite],
+  );
   const goStart = useCallback(() => seek(0), [seek]);
   const nextEvent = useCallback(() => {
     const ev = events.find((e) => e.pos > pos + 1e-3);
@@ -268,9 +295,51 @@ export function Navigator() {
                 </p>
               )}
             </div>
-            {selectedMs !== null && <span className="font-mono text-xs text-lunar-300">{fmtTime(selectedMs)}</span>}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex rounded-full border border-border p-0.5" role="radiogroup" aria-label="Sky panel view">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={!showTerrain}
+                  onClick={() => setView(null)}
+                  className={`min-h-7 rounded-full px-3 text-xs font-semibold transition-colors ${!showTerrain ? "bg-accent text-bg" : "text-muted hover:text-text"}`}
+                >
+                  Sky plot
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={showTerrain}
+                  aria-disabled={!terrainAvailable}
+                  title={terrainAvailable ? "Real LOLA terrain in 3D with Sun shadows" : terrainTip}
+                  onClick={() => terrainAvailable && setView("terrain")}
+                  className={`min-h-7 rounded-full px-3 text-xs font-semibold transition-colors ${showTerrain ? "bg-accent text-bg" : terrainAvailable ? "text-muted hover:text-text" : "cursor-not-allowed text-lunar-600"}`}
+                >
+                  3D terrain
+                  {!terrainAvailable && <span className="sr-only"> (unavailable: {terrainTip})</span>}
+                </button>
+              </div>
+              {selectedMs !== null && <span className="font-mono text-xs text-lunar-300">{fmtTime(selectedMs)}</span>}
+            </div>
           </div>
-          {data && horizon ? (
+          {terrainFailed && state.view === "terrain" && (
+            <p className="mb-3 rounded-lg border border-risky/30 bg-risky/5 px-3 py-2 text-sm text-muted" role="status">
+              The 3D terrain couldn&rsquo;t start ({terrainError.message}). Showing the sky plot instead.
+            </p>
+          )}
+          {data && horizon && showTerrain && patchSite ? (
+            <TerrainView
+              siteId={patchSite}
+              horizon={horizon.elevation}
+              sun={sun}
+              earth={earth}
+              earthMargin={detail?.earthMargin ?? null}
+              pos={pos}
+              playing={play.playing}
+              reduced={reduced}
+              onUnavailable={onTerrainUnavailable}
+            />
+          ) : data && horizon ? (
             <div className={`transition-opacity duration-300 ${loading ? "opacity-60" : "opacity-100"}`}>
               <SkyPlot horizon={horizon.elevation} terrain={horizon.terrain} siteKey={siteKey} times={times} sun={sun} earth={earth} index={pos} instant={play.playing} hud={mode} />
             </div>

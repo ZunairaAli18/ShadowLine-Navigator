@@ -1,0 +1,20 @@
+{
+ "site_id": "im-2",
+ "lat": -84.7906,
+ "lon": 29.1957,
+ "grid_size": 512,
+ "spacing_m": 78.2779,
+ "extent_m": 40000.0,
+ "z_scale": 0.08767732282619584,
+ "z_offset": -4401.685402951669,
+ "z_min": -4401.69,
+ "z_max": 1344.25,
+ "site_height_m": 5321.5,
+ "frame": "ENU",
+ "axes": "x = east, y = north, z = up (metres), origin = site surface point; z includes curvature",
+ "row_order": "row-major from the north-west corner (row 0 = north edge, col 0 = west edge)",
+ "encoding": "uint16 little-endian; height_m = value * z_scale + z_offset",
+ "dem_source": "LDEM_80S_80MPP_ADJ.tiff",
+ "dem_resolution_m": 80.0,
+ "credit": "NASA LRO LOLA, NASA GSFC Planetary Geodesy Data Archive (PGDA)"
+}

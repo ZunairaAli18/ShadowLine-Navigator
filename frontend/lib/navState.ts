@@ -2,7 +2,7 @@
  * Navigator state <-> URL query string (shareable links). Pure functions, unit-tested.
  *
  * /app?site=<id> | lat=&lon=, start=<ISO>, days=, step=, terrain=auto|flat, t=<ISO selected time>, tab=,
- *      mode=simple|expert, emargin=<deg>
+ *      mode=simple|expert, emargin=<deg>, view=terrain
  * Defaults: site=shackleton-ridge, start=now floored to the hour, days=14, step=60, terrain=auto, t=start,
  * mode=null (caller falls back to the remembered choice, then "simple"), emargin=0.
  */
@@ -10,6 +10,8 @@
 export type TerrainChoice = "auto" | "flat";
 export type NavMode = "simple" | "expert";
 export type NavTab = "compare" | "best" | "map" | "learn";
+/** Sky panel view: the 2D sky plot (default, null) or the 3D terrain (F12). */
+export type SkyView = "terrain" | null;
 export type Location = { kind: "site"; siteId: string } | { kind: "custom"; lat: number; lon: number };
 
 export type NavState = {
@@ -24,6 +26,8 @@ export type NavState = {
   mode: NavMode | null;
   /** Expert: extra clearance Earth must have above the skyline (deg), sent as earth_margin_deg. */
   earthMargin: number;
+  /** Sky panel: 3D terrain instead of the sky plot (only honoured where a terrain patch exists). */
+  view: SkyView;
   /** Tab settings kept in the URL as-is (cmp = compare scenarios; b* = best-dates inputs). */
   extras: Partial<Record<ExtraKey, string>>;
 };
@@ -105,7 +109,9 @@ export function parseNavState(params: URLSearchParams, now: Date = new Date()): 
   const em = parseNum(params.get("emargin"));
   const earthMargin = em === null ? 0 : Math.min(MAX_EARTH_MARGIN, Math.max(0, Math.round(em * 10) / 10));
 
-  return { location, start, days, step, terrain, t, tab, mode, earthMargin, extras };
+  const view: SkyView = params.get("view") === "terrain" ? "terrain" : null;
+
+  return { location, start, days, step, terrain, t, tab, mode, earthMargin, view, extras };
 }
 
 /** ISO without milliseconds, e.g. 2026-12-01T00:00:00Z. */
@@ -128,6 +134,7 @@ export function serializeNavState(s: NavState): URLSearchParams {
   if (s.tab) q.set("tab", s.tab);
   if (s.mode) q.set("mode", s.mode);
   if (s.earthMargin > 0) q.set("emargin", String(s.earthMargin));
+  if (s.view) q.set("view", s.view);
   for (const k of EXTRA_KEYS) {
     const v = s.extras[k];
     if (v) q.set(k, v);

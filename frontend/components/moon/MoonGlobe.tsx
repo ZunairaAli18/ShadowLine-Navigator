@@ -1,8 +1,8 @@
 "use client";
 
 import { OrbitControls, useTexture } from "@react-three/drei";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Suspense, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { Canvas, useFrame, useThree, type ThreeElements } from "@react-three/fiber";
+import { forwardRef, Suspense, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
 
 import { bodyToScene, latLonToScene, type Vec3 } from "@/lib/sun";
@@ -53,13 +53,35 @@ function SiteMarker({ position, phase }: { position: Vec3; phase: number }) {
   );
 }
 
-function Moon({ sunDir, sites, mode, progressRef, onReady }: Required<Pick<Props, "mode">> & Omit<Props, "className" | "mode">) {
+/**
+ * The textured lunar sphere (NASA SVS CGI Moon Kit colour + displacement), radius 1, MOON_ME orientation
+ * in scene axes (lon 0 at +X, see lib/sun.ts). Shared by the hero/fly globe and the navigator's Moon map.
+ * Suspends while the textures load.
+ */
+export const MoonSurface = forwardRef<THREE.Mesh, ThreeElements["mesh"]>(function MoonSurface(props, ref) {
   const [color, disp] = useTexture(["/textures/moon-color-2k.jpg", "/textures/moon-displacement-1k.jpg"], (tex) => {
     const [c] = tex as THREE.Texture[];
     c.colorSpace = THREE.SRGBColorSpace;
     c.anisotropy = 4;
   });
+  return (
+    <mesh ref={ref} {...props}>
+      <sphereGeometry args={[1, 192, 96]} />
+      <meshStandardMaterial
+        map={color}
+        displacementMap={disp}
+        displacementScale={0.014}
+        displacementBias={-0.007}
+        bumpMap={disp}
+        bumpScale={3}
+        roughness={1}
+        metalness={0}
+      />
+    </mesh>
+  );
+});
 
+function Moon({ sunDir, sites, mode, progressRef, onReady }: Required<Pick<Props, "mode">> & Omit<Props, "className" | "mode">) {
   const group = useRef<THREE.Group>(null);
   const light = useRef<THREE.DirectionalLight>(null);
   const target = useMemo(() => new THREE.Vector3(...bodyToScene(sunDir ?? DEFAULT_SUN)).normalize(), [sunDir]);
@@ -112,19 +134,7 @@ function Moon({ sunDir, sites, mode, progressRef, onReady }: Required<Pick<Props
     // group.rotation.y is set every frame from viewRot (see above).
     <group ref={group}>
       <directionalLight ref={light} intensity={3.4} color="#fff6e8" />
-      <mesh>
-        <sphereGeometry args={[1, 192, 96]} />
-        <meshStandardMaterial
-          map={color}
-          displacementMap={disp}
-          displacementScale={0.014}
-          displacementBias={-0.007}
-          bumpMap={disp}
-          bumpScale={3}
-          roughness={1}
-          metalness={0}
-        />
-      </mesh>
+      <MoonSurface />
       {sites?.map((s, i) => (
         <SiteMarker key={s.id} position={latLonToScene(s.lat, s.lon, 1.006)} phase={i * 0.9} />
       ))}

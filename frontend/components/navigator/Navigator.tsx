@@ -6,6 +6,7 @@ import { ControlBar } from "@/components/navigator/ControlBar";
 import { BestDatesTab } from "@/components/navigator/BestDatesTab";
 import { CompareTab } from "@/components/navigator/CompareTab";
 import { MetricsPanel } from "@/components/navigator/MetricsPanel";
+import { MoonMapTab } from "@/components/navigator/MoonMapTab";
 import { SkyPlot } from "@/components/navigator/SkyPlot";
 import { TabBar } from "@/components/navigator/TabBar";
 import { Timeline } from "@/components/navigator/Timeline";
@@ -123,6 +124,14 @@ export function Navigator() {
   const onChangeExtras = useCallback(
     (patch: NavState["extras"]) => update({ extras: { ...JSON.parse(extrasKey), ...patch } }, { replace: true }),
     [update, extrasKey],
+  );
+  // Moon map (F9): same window as the loaded /visibility data; picks keep the tab open.
+  const mapWindow = useMemo(() => ({ start: new Date(startMs), days: state.days, step: stepMin }), [startMs, state.days, stepMin]);
+  const selectSiteFromMap = useCallback((id: string) => update({ location: { kind: "site", siteId: id } }), [update]);
+  const pickFromMap = useCallback(
+    (lat: number, lon: number) =>
+      update({ location: { kind: "custom", lat: Math.round(lat * 100) / 100, lon: Math.round(lon * 100) / 100 } }),
+    [update],
   );
   const openScenario = useCallback(
     (s: { location: Location; start: Date; days: number; terrain: TerrainChoice }) => {
@@ -258,6 +267,16 @@ export function Navigator() {
 
       {state.tab === "compare" && (
         <CompareTab cmp={state.extras.cmp ?? null} current={current} onChangeCmp={onChangeCmp} onOpen={openScenario} />
+      )}
+      {state.tab === "map" && (
+        <MoonMapTab
+          location={state.location}
+          window={data ? mapWindow : null}
+          pos={pos}
+          selected={selected}
+          onSelectSite={selectSiteFromMap}
+          onPick={pickFromMap}
+        />
       )}
       {state.tab === "best" && <BestDatesTab extras={extrasObj} current={current} onChangeExtras={onChangeExtras} onLoad={openScenario} />}
     </div>

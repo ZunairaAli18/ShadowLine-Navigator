@@ -106,6 +106,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/globe-geometry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Globe Geometry
+         * @description Sub-solar and sub-Earth points for the 3D Moon map (same window rules and time grid as /visibility).
+         */
+        get: operations["globe_geometry_globe_geometry_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/compare": {
         parameters: {
             query?: never;
@@ -296,6 +316,41 @@ export interface components {
             time: string;
             /** Hours From Start */
             hours_from_start: number;
+        };
+        /**
+         * GlobeGeometryResponse
+         * @description Where the Sun and Earth are directly overhead on the Moon (MOON_ME frame), aligned with /visibility times.
+         */
+        GlobeGeometryResponse: {
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /** Step Minutes */
+            step_minutes: number;
+            /** Times */
+            times: string[];
+            /**
+             * Subsolar Lat
+             * @description Latitude with the Sun at the zenith (deg)
+             */
+            subsolar_lat: number[];
+            /**
+             * Subsolar Lon
+             * @description East longitude with the Sun at the zenith (deg, -180..180)
+             */
+            subsolar_lon: number[];
+            /**
+             * Subearth Lat
+             * @description Latitude with Earth at the zenith (deg); wobbles ~±7° (libration)
+             */
+            subearth_lat: number[];
+            /**
+             * Subearth Lon
+             * @description East longitude with Earth at the zenith (deg, -180..180)
+             */
+            subearth_lon: number[];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -813,6 +868,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SnapshotResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    globe_geometry_globe_geometry_get: {
+        parameters: {
+            query: {
+                /** @description UTC ISO 8601, e.g. 2026-12-01T00:00:00Z */
+                start: string;
+                days?: number;
+                step_minutes?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GlobeGeometryResponse"];
                 };
             };
             /** @description Validation Error */

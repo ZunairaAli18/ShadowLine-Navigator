@@ -8,12 +8,13 @@ import { useReducedMotionPref } from "@/lib/useCapable";
 
 type Props = { active: NavTab | null; onSelect: (tab: NavTab | null) => void };
 
-const TABS: { id: "compare" | "best"; label: string; icon: string }[] = [
+const TABS: { id: "compare" | "best" | "map"; label: string; icon: string }[] = [
   { id: "compare", label: "Compare", icon: "⇆" },
   { id: "best", label: "Best dates", icon: "★" },
+  { id: "map", label: "Moon map", icon: "◐" },
 ];
 
-/** Compare · Best dates · Moon map (coming soon) · Learn (link). Animated underline on the active tab. */
+/** Compare · Best dates · Moon map · Learn (link). Animated underline on the active tab. */
 export function TabBar({ active, onSelect }: Props) {
   const reduced = useReducedMotionPref();
   const base = "relative flex min-h-10 items-center gap-2 rounded-xl px-4 py-2 text-sm transition-colors";
@@ -41,10 +42,6 @@ export function TabBar({ active, onSelect }: Props) {
           </button>
         );
       })}
-      <span className={`${base} cursor-not-allowed text-lunar-600`} aria-disabled="true" title="Coming soon">
-        <span aria-hidden>◐</span> Moon map
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lunar-600">soon</span>
-      </span>
       <Link href="/learn" className={`${base} text-muted hover:text-text`}>
         <span aria-hidden>?</span> Learn <span aria-hidden>↗</span>
       </Link>

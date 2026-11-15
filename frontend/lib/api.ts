@@ -144,6 +144,14 @@ export function bestWindows(params: BestWindowsParams, opts?: Opts): Promise<Bes
   return request(`/best-windows${toQuery(params)}`, opts);
 }
 
+export type GlobeGeometry = Schemas["GlobeGeometryResponse"];
+export type GlobeGeometryParams = WithDates<paths["/globe-geometry"]["get"]["parameters"]["query"], "start">;
+
+/** Sub-solar / sub-Earth points aligned with /visibility times (for the 3D Moon map). */
+export function getGlobeGeometry(params: GlobeGeometryParams, opts?: Opts): Promise<GlobeGeometry> {
+  return request(`/globe-geometry${toQuery(params)}`, opts);
+}
+
 export function getHealth(opts?: Opts): Promise<Schemas["HealthResponse"]> {
   return request(`/health`, opts);
 }

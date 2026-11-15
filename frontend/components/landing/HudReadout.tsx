@@ -8,6 +8,27 @@ const SITE_ID = "shackleton-ridge";
 const REFRESH_MS = 10_000;
 
 const signed = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}°`;
+const LOW_SUN_DEG = 3;
+
+/**
+ * One plain-English line from the snapshot's visibility flags (real terrain), not the raw elevations:
+ * e.g. "Sun just above the horizon · Earth below the skyline, no direct radio contact right now."
+ */
+export function hudStatus(s: Pick<SnapshotResponse, "sun" | "earth">): string {
+  const f = s.sun.visible_fraction;
+  const sun =
+    f <= 0
+      ? "Sun hidden behind the ridge"
+      : f < 1
+        ? "Sun half hidden behind the ridge"
+        : s.sun.el < LOW_SUN_DEG
+          ? "Sun just above the horizon"
+          : "Sun up";
+  const earth = s.earth.visible ? "Earth in view, radio contact possible" : "Earth below the skyline, no direct radio contact";
+  return `${sun} · ${earth} right now.`;
+}
+
+const utcTime = (iso: string) => new Date(iso).toISOString().slice(11, 19);
 
 /** Live mono HUD: Sun and Earth az/el at Shackleton ridge right now, refreshed every ~10 s (paused when hidden). */
 export function HudReadout({ className = "" }: { className?: string }) {
@@ -44,10 +65,11 @@ export function HudReadout({ className = "" }: { className?: string }) {
       className={`glass inline-flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.2em] ${className}`}
       aria-live="off"
     >
-      <span className="flex items-center gap-2 text-lunar-400">
+      <span className="flex items-center gap-2 whitespace-nowrap text-lunar-400">
         <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${snap ? "bg-good motion-safe:animate-pulse" : "bg-lunar-600"}`} />
         Shackleton ridge · {snap ? "live" : failed ? "offline" : "…"}
       </span>
+      {snap && <span className="whitespace-nowrap tabular-nums text-lunar-500">· updated {utcTime(snap.time)} UTC</span>}
       {snap ? (
         <>
           <span>
@@ -66,6 +88,10 @@ export function HudReadout({ className = "" }: { className?: string }) {
       ) : (
         <span className="text-lunar-500">Sun az / el · Earth az / el</span>
       )}
+      {/* Plain-English status. Space for 2 lines is reserved on phones (1 from sm up) so changing text never shifts the page. */}
+      <p className="min-h-[2lh] basis-full font-body text-xs normal-case leading-snug tracking-normal text-muted sm:min-h-[1lh]">
+        {snap ? hudStatus(snap) : failed ? "Live conditions are unavailable right now." : " "}
+      </p>
     </div>
   );
 }

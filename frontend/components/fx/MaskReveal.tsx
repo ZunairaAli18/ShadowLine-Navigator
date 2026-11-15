@@ -19,7 +19,7 @@ export function MaskReveal({ lines, className, as = "h1", id, delay = 0.1 }: Pro
   return (
     <Tag id={id} className={className}>
       {lines.map((line, i) => (
-        <span key={i} className="block overflow-hidden pb-[0.08em]">
+        <span key={i} className="block overflow-hidden pb-[0.14em]">
           <motion.span
             className="block"
             initial={reduced ? { opacity: 0 } : { y: "110%" }}

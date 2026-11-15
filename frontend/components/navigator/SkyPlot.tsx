@@ -449,7 +449,10 @@ export function SkyPlot({ horizon, terrain, siteKey, times, sun, earth, index, i
       </div>
 
       {/* Panorama keeps a readable minimum width and scrolls sideways inside its panel on phones. */}
-      <div className={view === "panorama" ? "-mx-1 overflow-x-auto px-1 pb-1" : ""}>
+      <div
+        className={view === "panorama" ? "-mx-1 overflow-x-auto px-1 pb-1" : ""}
+        {...(view === "panorama" ? { tabIndex: 0, role: "region", "aria-label": "Panorama sky plot (scrolls sideways on narrow screens)" } : {})}
+      >
       <div className={`relative ${view === "panorama" ? "min-w-[680px]" : ""}`}>
         <svg
           ref={svgRef}

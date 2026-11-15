@@ -177,6 +177,7 @@ export default function MoonGlobe({ sunDir, sites, mode = "hero", progressRef, o
         frameloop={active ? "always" : "never"}
         gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
         camera={{ position: [0, 0, mode === "fly" ? 4.4 : 4.1], fov: 32, near: 0.05, far: 50 }}
+        role={mode === "fly" ? undefined : "img"}
         aria-label={mode === "fly" ? undefined : `3D Moon, lit by the Sun's real current position.${lite ? "" : " Drag to rotate."}`}
       >
         <ambientLight intensity={0.05} color="#9fb8ff" />

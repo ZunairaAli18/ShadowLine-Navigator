@@ -63,19 +63,18 @@ export default function Home() {
       {/* 7. Built on NASA data */}
       <section aria-labelledby="data-title" className="mx-auto max-w-6xl px-4 py-24 sm:px-6">
         <SectionHeading eyebrow="Accuracy" title={<span id="data-title">Built on NASA data</span>} />
-        <dl className="mt-10 grid gap-4 md:grid-cols-3">
+        <div className="mt-10 grid gap-4 md:grid-cols-3">
           {STATS.map((s, i) => (
             <Reveal key={s.label} delay={i * 0.08}>
               <Card className="h-full space-y-2">
-                <dt className="sr-only">{s.label}</dt>
-                <dd className="font-heading text-5xl font-bold tracking-tight sm:text-6xl">
+                <p className="font-heading text-5xl font-bold tracking-tight sm:text-6xl">
                   <CountUp value={s.value} decimals={s.decimals} suffix={s.suffix} />
-                </dd>
-                <dd className="text-sm text-muted">{s.label}</dd>
+                </p>
+                <p className="text-sm text-muted">{s.label}</p>
               </Card>
             </Reveal>
           ))}
-        </dl>
+        </div>
         <div className="mt-10">
           <h3 className="eyebrow mb-4">Data and tools</h3>
           <ul className="grid gap-x-8 gap-y-1 text-sm sm:grid-cols-2">

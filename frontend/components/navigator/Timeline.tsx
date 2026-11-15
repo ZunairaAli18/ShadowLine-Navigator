@@ -196,7 +196,7 @@ export function Timeline(props: Props) {
 
       <Transport {...props} />
 
-      <div className="-mx-1 overflow-x-auto px-1 pb-1">
+      <div className="-mx-1 overflow-x-auto px-1 pb-1" tabIndex={0} role="region" aria-label="Timeline bands (scroll sideways on narrow screens)">
         <div className="flex min-w-[640px] gap-3">
           {/* row labels */}
           <div className="relative w-16 shrink-0 select-none text-[11px] font-semibold" style={{ height: H }} aria-hidden>

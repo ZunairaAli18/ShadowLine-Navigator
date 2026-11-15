@@ -802,6 +802,7 @@ export default function TerrainView({ siteId, horizon, sun, earth, earthMargin, 
           frameloop={active ? "demand" : "never"}
           gl={{ antialias: true, logarithmicDepthBuffer: true, powerPreference: "high-performance" }}
           camera={{ position: [-14_000, 17_000, 22_000], fov: 45, near: 0.1, far: 800_000 }}
+          role="img"
           aria-label="3D terrain around the site, lit by the Sun at the selected time"
         >
           <Scene

@@ -309,6 +309,7 @@ export default function MoonMap(props: Props) {
         frameloop={active ? "demand" : "never"}
         gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
         camera={{ position: [3.9, 0.58, 0], fov: 35, near: 0.05, far: 50 }}
+        role="img"
         aria-label="Interactive 3D Moon: drag to rotate, scroll to zoom, click a site to select it or the surface to set a custom site."
       >
         <Scene {...props} hover={hover} setHover={setHover} labels={labels} cursor={cursor} />

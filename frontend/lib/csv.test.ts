@@ -65,20 +65,34 @@ describe("eventsCsv and file names", () => {
 describe("verdictSentence", () => {
   it("explains a far-side site in plain words", () => {
     const s = verdictSentence({ verdict: "not_viable", sun_pct: 92, earth_pct: 0, longest_dark_hours: 26, longest_dark_truncated: true });
-    expect(s).toBe("Not viable because Earth never rises above the skyline here, so the lander would need a relay satellite to talk home.");
+    expect(s).toEqual({ lead: "Not viable because Earth never rises above the skyline, so the lander would need a relay satellite to talk home.", more: [] });
+  });
+
+  it("leads with the main reason and lists the rest (change-4 style)", () => {
+    const s = verdictSentence({ verdict: "not_viable", sun_pct: 16, earth_pct: 0, longest_dark_hours: 283, longest_dark_truncated: true });
+    expect(s.lead).toBe("Not viable because Earth never rises above the skyline, so the lander would need a relay satellite to talk home.");
+    expect(s.more).toEqual(["The Sun is up only 16% of the time", "The longest darkness is at least 12 days, too long for batteries"]);
   });
 
   it("explains long darkness", () => {
     const s = verdictSentence({ verdict: "not_viable", sun_pct: 2.4, earth_pct: 100, longest_dark_hours: 328, longest_dark_truncated: false });
-    expect(s).toBe("Not viable because the Sun is up only 2% of the time and the longest darkness is 14 days, too long for batteries.");
+    expect(s).toEqual({ lead: "Not viable because the Sun is up only 2% of the time.", more: ["The longest darkness is 14 days, too long for batteries"] });
   });
 
   it("explains risky and good", () => {
-    expect(verdictSentence({ verdict: "risky", sun_pct: 100, earth_pct: 42, longest_dark_hours: 0, longest_dark_truncated: false })).toBe(
-      "Risky because Earth is in view only 42% of the time, so contact would be patchy.",
-    );
-    expect(verdictSentence({ verdict: "good", sun_pct: 99, earth_pct: 100, longest_dark_hours: 4, longest_dark_truncated: false })).toBe(
-      "Good: the Sun is up 99% of the time, Earth is in view 100% of the time and the longest dark spell is only 4 hours.",
+    expect(verdictSentence({ verdict: "risky", sun_pct: 100, earth_pct: 42, longest_dark_hours: 0, longest_dark_truncated: false })).toEqual({
+      lead: "Risky because Earth is in view only 42% of the time, so contact would be patchy.",
+      more: [],
+    });
+    expect(verdictSentence({ verdict: "good", sun_pct: 99, earth_pct: 100, longest_dark_hours: 4, longest_dark_truncated: false })).toEqual({
+      lead: "Good: the Sun is up 99% of the time.",
+      more: ["Earth is in view 100% of the time", "The longest dark spell is only 4 hours"],
+    });
+  });
+
+  it("falls back when no reason matches", () => {
+    expect(verdictSentence({ verdict: "risky", sun_pct: 90, earth_pct: 90, longest_dark_hours: 10, longest_dark_truncated: false }).lead).toBe(
+      "Risky because some conditions are borderline.",
     );
   });
 });

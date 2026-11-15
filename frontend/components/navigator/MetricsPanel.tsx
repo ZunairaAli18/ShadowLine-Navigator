@@ -153,6 +153,7 @@ const simpleHours = (h: number, truncated: boolean) => (h === 0 ? "none" : `${tr
 function WhyPopover({ m }: { m: Metrics }) {
   const [open, setOpen] = useState(false);
   const id = useId();
+  const why = verdictSentence(m);
   return (
     <div className="relative">
       <button
@@ -165,9 +166,16 @@ function WhyPopover({ m }: { m: Metrics }) {
         Why?
       </button>
       {open && (
-        <p id={id} className="glass absolute left-0 top-9 z-20 w-64 rounded-xl px-3 py-2.5 text-sm leading-relaxed text-text" role="note">
-          {verdictSentence(m)}
-        </p>
+        <div id={id} className="glass absolute left-0 top-9 z-20 w-64 rounded-xl px-3 py-2.5 text-sm leading-relaxed text-text" role="note">
+          <p>{why.lead}</p>
+          {why.more.length > 0 && (
+            <ul className="mt-1.5 space-y-0.5 text-muted">
+              {why.more.map((r) => (
+                <li key={r}>· {r}</li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );

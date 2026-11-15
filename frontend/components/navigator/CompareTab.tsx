@@ -19,6 +19,7 @@ import {
 import { formatDuration } from "@/lib/countdowns";
 import { compareCsv, downloadName, downloadText } from "@/lib/csv";
 import { isoUtc, MAX_DAYS, MIN_DAYS, type Location, type NavMode, type TerrainChoice } from "@/lib/navState";
+import { useApiWaking } from "@/lib/useApiWaking";
 
 const DEBOUNCE_MS = 400;
 
@@ -181,6 +182,7 @@ function ResultBlock({ r, best, onOpen, mode }: { r: ScenarioResult; best: Recor
 }
 
 export const CompareTab = memo(function CompareTab({ cmp, current, onChangeCmp, onOpen, mode }: Props) {
+  const waking = useApiWaking();
   const decoded = useMemo(() => decodeScenarios(cmp), [cmp]);
   // No `cmp` yet: start with "Flat vs real terrain" for the current view.
   const scenarios = decoded.length ? decoded : presetFlatVsReal(current);
@@ -252,7 +254,7 @@ export const CompareTab = memo(function CompareTab({ cmp, current, onChangeCmp, 
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="hud" aria-live="polite">
-            {result.status === "loading" ? "Computing…" : results ? `${results.length} scenarios` : ""}
+            {result.status === "loading" ? (waking ? "Waking up the model…" : "Computing…") : results ? `${results.length} scenarios` : ""}
           </span>
           {mode === "expert" && results && (
             <button

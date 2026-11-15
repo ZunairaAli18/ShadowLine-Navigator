@@ -1,6 +1,6 @@
 "use client";
 
-import { Html, Line, OrbitControls } from "@react-three/drei";
+import { Line, OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
@@ -16,6 +16,8 @@ import { bodyToScene, type Vec3 } from "@/lib/sun";
  * - Site markers (hover label, click = select), click anywhere else = custom site (raycast -> lat/lon).
  * - Camera presets with a smooth fly-to (instant under reduced motion). Zoom clamped, no auto-spin.
  * - frameloop "demand": renders only when something changes; "never" while hidden or off-screen.
+ * - Labels are plain DOM in an overlay owned by the main React tree, positioned from useFrame (no drei <Html>:
+ *   its per-label React roots unmount synchronously during the canvas teardown and crash React on tab switches).
  */
 
 export type MapSite = { id: string; name: string; region: string; lat: number; lon: number };
@@ -76,17 +78,13 @@ function EarthZone({ earth, sun }: { earth: THREE.Vector3; sun: THREE.Vector3 })
 function Marker({
   site,
   isCurrent,
-  hovered,
   onHover,
   onSelect,
-  occluder,
 }: {
   site: MapSite;
   isCurrent: boolean;
-  hovered: boolean;
   onHover: (id: string | null) => void;
   onSelect: (id: string) => void;
-  occluder: React.RefObject<THREE.Mesh | null>;
 }) {
   const pos = useMemo(() => latLonToSceneVec(site.lat, site.lon).map((v) => v * 1.012) as Vec3, [site.lat, site.lon]);
   return (
@@ -115,28 +113,36 @@ function Marker({
         <sphereGeometry args={[0.04, 12, 12]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
-      {isCurrent && (
-        <Html center occlude={[occluder as React.RefObject<THREE.Object3D>]} zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-          <span className="block h-7 w-7 rounded-full border-2 border-sun/80 motion-safe:animate-ping" aria-hidden />
-        </Html>
-      )}
-      {(hovered || isCurrent) && (
-        <Html center occlude={[occluder as React.RefObject<THREE.Object3D>]} zIndexRange={[30, 0]} style={{ pointerEvents: "none", transform: "translateY(-26px)" }}>
-          <span className="glass whitespace-nowrap rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-text">
-            {isCurrent ? "◎ " : ""}
-            {site.name} · {site.region.replace("_", " ")}
-          </span>
-        </Html>
-      )}
     </group>
   );
 }
 
-function Scene({ sunDirBody, earthDirBody, sites, currentSiteId, current, preset, reduced, onSelectSite, onPick }: Props) {
+type LabelRefs = { current: React.RefObject<HTMLDivElement | null>; hover: React.RefObject<HTMLDivElement | null>; custom: React.RefObject<HTMLDivElement | null> };
+
+const _v = new THREE.Vector3();
+const _n = new THREE.Vector3();
+
+/** Put an overlay element at a surface point's screen position; hide it when the point is on the far side. */
+function placeLabel(el: HTMLDivElement | null, at: Vec3 | null, camera: THREE.Camera, w: number, h: number) {
+  if (!el) return;
+  if (!at) {
+    el.style.opacity = "0";
+    return;
+  }
+  _n.set(...at);
+  const facing = _v.copy(camera.position).sub(_n).dot(_n) > 0;
+  _v.set(...at).project(camera);
+  el.style.transform = `translate3d(${(((_v.x + 1) / 2) * w).toFixed(1)}px, ${(((1 - _v.y) / 2) * h).toFixed(1)}px, 0)`;
+  el.style.opacity = facing ? "1" : "0";
+}
+
+type SceneProps = Props & { hover: string | null; setHover: (id: string | null) => void; labels: LabelRefs };
+
+function Scene({ sunDirBody, earthDirBody, sites, currentSiteId, current, preset, reduced, onSelectSite, onPick, hover, setHover, labels }: SceneProps) {
   const { camera, invalidate } = useThree();
   const controls = useThree((s) => s.controls) as unknown as { update: () => void } | null;
   const moon = useRef<THREE.Mesh>(null);
-  const [hover, setHover] = useState<string | null>(null);
+  const size = useThree((s) => s.size);
 
   const sun = useMemo(() => new THREE.Vector3(...bodyToScene(sunDirBody)).normalize(), [sunDirBody]);
   const earth = useMemo(() => new THREE.Vector3(...bodyToScene(earthDirBody)).normalize(), [earthDirBody]);
@@ -172,6 +178,10 @@ function Scene({ sunDirBody, earthDirBody, sites, currentSiteId, current, preset
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset.kind, preset.nonce, preset.kind === "site" ? `${current.lat},${current.lon}` : ""]);
 
+  const showCustom = currentSiteId === null;
+  const customPos = useMemo(() => latLonToSceneVec(current.lat, current.lon).map((v) => v * 1.012) as Vec3, [current.lat, current.lon]);
+  const sitePos = useMemo(() => new Map(sites.map((s) => [s.id, latLonToSceneVec(s.lat, s.lon).map((v) => v * 1.012) as Vec3])), [sites]);
+
   useFrame((_, dt) => {
     const f = fly.current;
     if (!f) return;
@@ -186,6 +196,13 @@ function Scene({ sunDirBody, earthDirBody, sites, currentSiteId, current, preset
     invalidate();
   });
 
+  // Overlay labels follow their points every rendered frame (registered after the fly-to, so they use this frame's camera).
+  useFrame(() => {
+    placeLabel(labels.current.current, currentSiteId ? (sitePos.get(currentSiteId) ?? null) : null, camera, size.width, size.height);
+    placeLabel(labels.hover.current, hover && hover !== currentSiteId ? (sitePos.get(hover) ?? null) : null, camera, size.width, size.height);
+    placeLabel(labels.custom.current, showCustom ? customPos : null, camera, size.width, size.height);
+  });
+
   const onSurfaceClick = (e: ThreeEvent<MouseEvent>) => {
     if (e.delta > 4) return; // drag, not a click
     e.stopPropagation();
@@ -193,9 +210,6 @@ function Scene({ sunDirBody, earthDirBody, sites, currentSiteId, current, preset
     const ll = hitToLatLon([local.x, local.y, local.z]);
     onPick(ll.lat, ll.lon);
   };
-
-  const showCustom = currentSiteId === null;
-  const customPos = useMemo(() => latLonToSceneVec(current.lat, current.lon).map((v) => v * 1.012) as Vec3, [current.lat, current.lon]);
 
   return (
     <>
@@ -214,7 +228,7 @@ function Scene({ sunDirBody, earthDirBody, sites, currentSiteId, current, preset
       <Line points={[earthFoot, earthPos]} color="#5ec8ff" transparent opacity={0.35} lineWidth={1} dashed dashSize={0.04} gapSize={0.03} raycast={() => null} />
 
       {sites.map((s) => (
-        <Marker key={s.id} site={s} isCurrent={s.id === currentSiteId} hovered={hover === s.id} onHover={setHover} onSelect={onSelectSite} occluder={moon} />
+        <Marker key={s.id} site={s} isCurrent={s.id === currentSiteId} onHover={setHover} onSelect={onSelectSite} />
       ))}
       {showCustom && (
         <group position={customPos}>
@@ -222,9 +236,6 @@ function Scene({ sunDirBody, earthDirBody, sites, currentSiteId, current, preset
             <sphereGeometry args={[0.016, 16, 16]} />
             <meshBasicMaterial color="#b9a6ff" toneMapped={false} />
           </mesh>
-          <Html center occlude={[moon as React.RefObject<THREE.Object3D>]} style={{ pointerEvents: "none", transform: "translateY(-24px)" }}>
-            <span className="glass whitespace-nowrap rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-accent">◎ Custom site</span>
-          </Html>
         </group>
       )}
 
@@ -253,9 +264,17 @@ export default function MoonMap(props: Props) {
   }, []);
 
   const active = onScreen && tabVisible;
+  const [hover, setHover] = useState<string | null>(null);
+  const labelCurrent = useRef<HTMLDivElement>(null);
+  const labelHover = useRef<HTMLDivElement>(null);
+  const labelCustom = useRef<HTMLDivElement>(null);
+  const labels = useMemo<LabelRefs>(() => ({ current: labelCurrent, hover: labelHover, custom: labelCustom }), []);
+  const currentSite = props.sites.find((s) => s.id === props.currentSiteId) ?? null;
+  const hoverSite = hover && hover !== props.currentSiteId ? (props.sites.find((s) => s.id === hover) ?? null) : null;
+  const where = (s: MapSite) => `${s.name} · ${s.region.replace("_", " ")}`;
 
   return (
-    <div ref={wrapper} className={props.className} data-globe-active={active ? "true" : "false"}>
+    <div ref={wrapper} className={`relative ${props.className ?? ""}`} data-globe-active={active ? "true" : "false"}>
       <Canvas
         dpr={[1, 2]}
         frameloop={active ? "demand" : "never"}
@@ -263,8 +282,33 @@ export default function MoonMap(props: Props) {
         camera={{ position: [3.9, 0.58, 0], fov: 35, near: 0.05, far: 50 }}
         aria-label="Interactive 3D Moon: drag to rotate, scroll to zoom, click a site to select it or the surface to set a custom site."
       >
-        <Scene {...props} />
+        <Scene {...props} hover={hover} setHover={setHover} labels={labels} />
       </Canvas>
+      {/* Labels: positioned by Scene's useFrame (opacity 0 until placed and whenever the point faces away). */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        {currentSite && (
+          <div ref={labelCurrent} className="absolute left-0 top-0 opacity-0">
+            <span className="absolute block h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-sun/80 motion-safe:animate-ping" />
+            <span className="glass absolute -translate-x-1/2 -translate-y-[calc(100%+14px)] whitespace-nowrap rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-text">
+              ◎ {where(currentSite)}
+            </span>
+          </div>
+        )}
+        {hoverSite && (
+          <div ref={labelHover} className="absolute left-0 top-0 opacity-0">
+            <span className="glass absolute -translate-x-1/2 -translate-y-[calc(100%+12px)] whitespace-nowrap rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-text">
+              {where(hoverSite)}
+            </span>
+          </div>
+        )}
+        {props.currentSiteId === null && (
+          <div ref={labelCustom} className="absolute left-0 top-0 opacity-0">
+            <span className="glass absolute -translate-x-1/2 -translate-y-[calc(100%+12px)] whitespace-nowrap rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-accent">
+              ◎ Custom site
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

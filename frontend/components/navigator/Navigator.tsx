@@ -21,6 +21,7 @@ import { encodeScenarios, presetFlatVsReal } from "@/lib/compareUrl";
 import { stateAt } from "@/lib/countdowns";
 import { clampPos, interpAt, posForTime, timeAt } from "@/lib/interp";
 import { type Location, type NavMode, type NavState, type NavTab, type TerrainChoice } from "@/lib/navState";
+import { useApiWaking } from "@/lib/useApiWaking";
 import { storeMode, useStoredMode } from "@/lib/useStoredMode";
 
 const URL_WRITE_MS = 250; // ~4 writes/s while scrubbing or playing
@@ -217,6 +218,7 @@ export function Navigator() {
   const siteKey = `${loc.kind === "site" ? loc.siteId : `${loc.lat},${loc.lon}`}|${horizon?.terrain ?? "flat"}`;
   const title = data?.site.name ?? (loc.kind === "site" ? "Loading…" : `Custom (${loc.lat}, ${loc.lon})`);
   const loading = status.kind === "loading";
+  const waking = useApiWaking();
   const selectedMs = series && n ? timeAt(series.timesMs, pos) : null;
 
   return (
@@ -229,7 +231,7 @@ export function Navigator() {
         <div className="flex flex-wrap items-center gap-2">
           {data && <Pill tone={data.terrain === "lola" ? "accent" : "default"}>{data.terrain === "lola" ? "▲ LOLA terrain" : "Flat horizon"}</Pill>}
           <span className="hud" aria-live="polite">
-            {loading ? "Computing…" : status.kind === "ok" ? `${n} steps · ${state.days} d` : ""}
+            {loading ? (waking ? "Waking up the model…" : "Computing…") : status.kind === "ok" ? `${n} steps · ${state.days} d` : ""}
           </span>
         </div>
       </header>

@@ -1,6 +1,7 @@
 """Sun & Earth azimuth/elevation from a point on the lunar surface (Skyfield + DE421).
 
-Kernels are cached in app/data/kernels/ and loaded once at startup via load_ephemeris().
+Kernels live in app/data/kernels/ (fetched by scripts/fetch_kernels.py) and are loaded once at startup
+via load_ephemeris().
 Azimuth: 0 = north, 90 = east, clockwise, 0-360. Elevation: degrees above the flat local horizon.
 """
 
@@ -89,16 +90,19 @@ _eph: Optional[_Ephemeris] = None
 
 
 def _fetch(load: Loader, name: str):
-    """Open a kernel from the cache dir, downloading it from NAIF if missing."""
+    """Open a kernel from the cache dir. Kernels are never downloaded at startup:
+    run `python scripts/fetch_kernels.py` first (the Render build command does)."""
+    path = KERNELS_DIR / name
+    if not path.exists():
+        raise EphemerisNotLoadedError(
+            f"Kernel '{name}' is missing from {KERNELS_DIR}.\n"
+            f"  Run: python scripts/fetch_kernels.py  (or download {KERNEL_URLS[name]} and save it as {path})"
+        )
     try:
-        if (KERNELS_DIR / name).exists():
-            return load(name)
-        return load(KERNEL_URLS[name])
+        return load(name)
     except Exception as e:
         raise EphemerisNotLoadedError(
-            f"Could not load kernel '{name}' ({e}).\n"
-            f"  Download it manually from: {KERNEL_URLS[name]}\n"
-            f"  and save it as: {KERNELS_DIR / name}"
+            f"Could not load kernel '{name}' ({e}). Delete it and run: python scripts/fetch_kernels.py"
         ) from e
 
 
@@ -133,7 +137,7 @@ def is_loaded() -> bool:
 
 def _require() -> _Ephemeris:
     if _eph is None:
-        raise EphemerisNotLoadedError("Ephemeris not loaded; see server startup log for download instructions.")
+        raise EphemerisNotLoadedError("Ephemeris not loaded: the kernel files are missing on the server (run python scripts/fetch_kernels.py).")
     return _eph
 
 

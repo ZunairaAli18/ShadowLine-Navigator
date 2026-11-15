@@ -5,7 +5,7 @@ import { Button, Card, Pill, SectionHeading, VerdictBadge } from "@/components/u
 
 import { SiteCount } from "./SiteCount";
 
-export const metadata: Metadata = { title: "Styleguide" };
+export const metadata: Metadata = { title: "Styleguide", robots: { index: false } };
 
 const COLORS = [
   ["bg", "#0B0D1A"],

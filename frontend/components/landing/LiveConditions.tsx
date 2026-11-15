@@ -9,6 +9,7 @@ import { CountUp } from "@/components/fx/CountUp";
 import { Button, Card, VerdictBadge } from "@/components/ui";
 import { ApiError, compare, type ScenarioResult } from "@/lib/api";
 import { navigatorUrl, nowHourUtc } from "@/lib/format";
+import { useApiWaking, WAKING_TEXT } from "@/lib/useApiWaking";
 import { useReducedMotionPref } from "@/lib/useCapable";
 
 const SITE_IDS = ["apollo-11", "apollo-15", "im-2", "shackleton-ridge"];
@@ -67,6 +68,7 @@ function StatusDot({ kind, on }: { kind: "sun" | "earth"; on: boolean }) {
 
 export function LiveConditions() {
   const [state, setState] = useState<State>({ status: "loading" });
+  const waking = useApiWaking();
   const ctrlRef = useRef<AbortController | null>(null);
 
   const load = useCallback(() => {
@@ -96,7 +98,7 @@ export function LiveConditions() {
     return (
       <Card className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between" role="alert">
         <div>
-          <p className="font-heading text-lg font-semibold">Model is waking up…</p>
+          <p className="font-heading text-lg font-semibold">Couldn&rsquo;t load live conditions</p>
           <p className="mt-1 text-sm text-muted">{state.message}</p>
         </div>
         <Button variant="secondary" onClick={retry}>
@@ -108,6 +110,11 @@ export function LiveConditions() {
 
   return (
     <div>
+      {state.status === "loading" && waking && (
+        <p className="mb-3 text-sm text-muted" role="status">
+          {WAKING_TEXT}
+        </p>
+      )}
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-busy={state.status === "loading"} aria-live="polite">
         {state.status === "loading"
           ? SITE_IDS.map((id) => (

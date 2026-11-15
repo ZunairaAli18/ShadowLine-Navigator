@@ -20,9 +20,14 @@ def test_health(client):
     assert r.json()["status"] == "ok"
 
 
-def test_cors_allows_any_origin(client):
+def test_cors_allows_local_dev_origin(client):
     r = client.get("/health", headers={"Origin": "http://localhost:3000"})
-    assert r.headers["access-control-allow-origin"] == "*"
+    assert r.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+
+def test_cors_rejects_unknown_origin(client):
+    r = client.get("/health", headers={"Origin": "https://evil.example.com"})
+    assert "access-control-allow-origin" not in r.headers
 
 
 def test_cors_preflight_from_frontend_dev_server(client):

@@ -18,6 +18,10 @@ import { Card, Pill } from "@/components/ui";
 export const metadata: Metadata = {
   title: "Learn",
   description: "Why is the Moon's south pole so hard? Sunlight, Earth and shadows on the Moon, explained in three minutes.",
+  openGraph: {
+    title: "Learn · Shadowline",
+    description: "Why is the Moon's south pole so hard? Sunlight, Earth and shadows on the Moon, explained in three minutes.",
+  },
 };
 
 const SECTIONS = [

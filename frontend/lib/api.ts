@@ -85,15 +85,95 @@ function toQuery(params: Record<string, QueryValue>): string {
   return s ? `?${s}` : "";
 }
 
+// ---------------------------------------------------------------- cold start (Render free tier)
+//
+// The free backend sleeps after ~15 min idle and takes up to a minute to wake. While it wakes, requests
+// fail at the network level or come back 502/504 from Render's proxy, or simply hang. So: retry with
+// backoff for up to WAKE_BUDGET_MS, and publish a "waking" flag that loading states show instead of an error.
+
+/** How long to keep retrying an unreachable backend before giving up. */
+export const WAKE_BUDGET_MS = 60_000;
+/** A first response slower than this flips the "waking" flag on. */
+const SLOW_MS = 3_500;
+const BACKOFF_MS = [1_000, 2_000, 3_000, 5_000, 8_000];
+
+let waking = false;
+/** After the first answer the backend is awake; later slow responses are just heavy work, not a cold start. */
+let answered = false;
+const wakeListeners = new Set<() => void>();
+
+function setWaking(v: boolean) {
+  if (waking === v) return;
+  waking = v;
+  wakeListeners.forEach((l) => l());
+}
+
+/** True while the backend seems to be waking up (a request is slow or being retried). */
+export function isApiWaking(): boolean {
+  return waking;
+}
+
+/** Subscribe to waking changes (for useSyncExternalStore). Returns the unsubscribe function. */
+export function subscribeApiWaking(listener: () => void): () => void {
+  wakeListeners.add(listener);
+  return () => wakeListeners.delete(listener);
+}
+
+/** Status codes Render's proxy returns while the instance boots. Our own 503 (with a JSON detail) is final. */
+const WAKE_STATUSES = new Set([502, 504]);
+
+function sleep(ms: number, signal?: AbortSignal | null): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new DOMException("Aborted", "AbortError"));
+    const t = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(t);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+/** fetch with cold-start retries. Resolves with the first non-wake response; throws ApiError(status 0) after the budget. */
+async function fetchWaking(url: string, init: RequestInit): Promise<Response> {
+  const t0 = Date.now();
+  for (let attempt = 0; ; attempt++) {
+    // Flag a slow response as "waking" without cancelling it: the instance may answer this very request.
+    const slowTimer = answered ? undefined : setTimeout(() => setWaking(true), SLOW_MS);
+    let res: Response | null = null;
+    try {
+      res = await fetch(url, init);
+    } catch (err) {
+      if ((err as Error)?.name === "AbortError") throw err;
+    } finally {
+      clearTimeout(slowTimer);
+    }
+    if (res && !WAKE_STATUSES.has(res.status)) {
+      answered = true;
+      setWaking(false); // any answer means the instance is up
+      return res;
+    }
+    const wait = BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)];
+    if (Date.now() - t0 + wait > WAKE_BUDGET_MS) {
+      setWaking(false);
+      throw new ApiError(
+        res
+          ? `The Shadowline API is still starting (HTTP ${res.status}). Please try again in a moment.`
+          : `Can't reach the Shadowline API at ${API_URL}. It may be waking up or offline; please try again.`,
+        res?.status ?? 0,
+      );
+    }
+    setWaking(true);
+    await sleep(wait, init.signal);
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit & { signal?: AbortSignal }): Promise<T> {
   const url = `${API_URL}${path}`;
-  let res: Response;
-  try {
-    res = await fetch(url, { ...init, headers: { Accept: "application/json", ...init?.headers } });
-  } catch (err) {
-    if ((err as Error)?.name === "AbortError") throw err;
-    throw new ApiError(`Can't reach the Shadowline API at ${API_URL}. Is the backend running?`, 0);
-  }
+  const res = await fetchWaking(url, { ...init, headers: { Accept: "application/json", ...init?.headers } });
   if (!res.ok) {
     let detail: unknown;
     try {
@@ -105,6 +185,20 @@ async function request<T>(path: string, init?: RequestInit & { signal?: AbortSig
     throw new ApiError(detailToMessage(detail) || `Request failed (${res.status}) ${fallback}`, res.status, detail);
   }
   return (await res.json()) as T;
+}
+
+let wakePinged = false;
+
+/**
+ * Fire-and-forget GET /health so a sleeping backend starts booting while the page renders.
+ * Runs once per page load; never throws.
+ */
+export function wakeBackend(): void {
+  if (wakePinged || typeof window === "undefined") return;
+  wakePinged = true;
+  getHealth().catch(() => {
+    /* the real requests will retry and report */
+  });
 }
 
 type Opts = { signal?: AbortSignal };

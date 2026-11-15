@@ -3,7 +3,13 @@ import { Suspense } from "react";
 
 import { Navigator } from "@/components/navigator/Navigator";
 
-export const metadata: Metadata = { title: "Navigator" };
+const DESC = "Pick a lunar landing site and dates: see the Sun and Earth over the real skyline, power and comms windows, and a verdict.";
+
+export const metadata: Metadata = {
+  title: "Navigator",
+  description: DESC,
+  openGraph: { title: "Navigator · Shadowline", description: DESC },
+};
 
 function NavigatorFallback() {
   return (

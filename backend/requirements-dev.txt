@@ -1,0 +1,8 @@
+# Development, tests and offline scripts (horizon builder, plots, validation).
+#   pip install -r requirements-dev.txt
+-r requirements.txt
+pytest>=8.0
+httpx>=0.27          # FastAPI TestClient and scripts/validate_horizons.py
+rasterio>=1.3        # scripts/build_horizon.py (LOLA DEMs)
+pyproj>=3.6          # scripts/build_horizon.py (polar stereographic CRS)
+matplotlib>=3.8      # scripts/plot_horizons.py

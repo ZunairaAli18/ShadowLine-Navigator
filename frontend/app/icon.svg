@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Shadowline mark: a lit Moon cut by a dark terminator, over a jagged lavender ridge. Our own artwork. -->
+  <rect width="64" height="64" rx="14" fill="#07080F"/>
+  <circle cx="32" cy="28" r="17" fill="#F4F2FF"/>
+  <circle cx="40" cy="22" r="16" fill="#07080F"/>
+  <path d="M4 50 L14 41 L20 45 L28 36 L35 43 L42 39 L50 45 L60 38 L60 64 L4 64 Z" fill="#141729"/>
+  <path d="M4 50 L14 41 L20 45 L28 36 L35 43 L42 39 L50 45 L60 38" fill="none" stroke="#B9A6FF" stroke-width="2.4" stroke-linejoin="round"/>
+</svg>

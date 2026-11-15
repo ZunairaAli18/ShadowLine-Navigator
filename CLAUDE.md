@@ -117,6 +117,10 @@ backend/
   not low-power); otherwise the 2D fallback renders (HeroSky, problem cards). The globe pauses off-screen.
 - API rule: all backend calls go through `lib/api.ts` (getSites, getSite, getHorizon, getVisibility, getSnapshot,
   compare, bestWindows). Errors are thrown as `ApiError` with the backend's `detail` as the message.
+  Cold starts: requests retry network errors / 502 / 504 for up to 60 s and set a "waking" flag
+  (`useApiWaking()`); loading states show `WAKING_TEXT`. `WakeBackend` (in the layout) pings /health on load.
+- 3D labels: don't use drei `<Html>` inside a Canvas that can unmount (it crashes React on teardown);
+  use a DOM overlay positioned from `useFrame` (see MoonMap).
   Types come from `npm run gen:api` (backend must be running); re-run it after any `models.py` change.
 - Config: `NEXT_PUBLIC_API_URL` (default `http://127.0.0.1:8000`); see `frontend/.env.example`.
 - Run: `cd frontend && npm install && npm run dev` (http://localhost:3000). Lint: `npm run lint`.
@@ -130,4 +134,11 @@ backend/
 - `models.py` is the contract with the frontend team. Don't change field names without saying so clearly.
 - Keep it simple and readable; this is a 48-hour hackathon.
 - Run backend: `cd backend && uvicorn app.main:app --reload`
+  (first time: `pip install -r requirements-dev.txt && python scripts/fetch_kernels.py`; kernels are never
+  downloaded at startup, a missing kernel means 503 + `/health` ephemeris_loaded=false).
+- Requirements: `backend/requirements.txt` = runtime only (what the API imports; Render installs it);
+  `requirements-dev.txt` = tests + offline scripts (rasterio, pyproj, matplotlib, pytest, httpx).
+- Deployment: see DEPLOY.md. API on Render (`render.yaml`, Python 3.13.0), web app on Vercel (root `frontend`).
+  Backend env: `ALLOWED_ORIGINS` (comma-separated), `ALLOWED_ORIGIN_REGEX`, `SHADOWLINE_WARMUP=0` (tests).
+  Frontend env: `NEXT_PUBLIC_API_URL`, optional `NEXT_PUBLIC_SITE_URL`. The frontend build must not need the backend.
 - Run tests: `cd backend && pytest`

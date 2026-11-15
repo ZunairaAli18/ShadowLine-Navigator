@@ -45,6 +45,34 @@ function capableSnapshot(): boolean {
   return hasWebGL();
 }
 
+/** Weak devices and data savers get the 2D scenes even when WebGL works. */
+function lowPower(): boolean {
+  const nav = navigator as Nav;
+  if (nav.connection?.saveData) return true;
+  if ((nav.hardwareConcurrency ?? 4) < 4) return true;
+  return nav.deviceMemory !== undefined && nav.deviceMemory < 4;
+}
+
+export type GlobeTier = "full" | "lite" | "none";
+
+/**
+ * full: desktop-class (see capableSnapshot). lite: phones/tablets/touch with WebGL, not reduced motion,
+ * not low-power or save-data: a lighter 3D Moon (lower DPR, fewer segments, no drag in the hero).
+ * none: the 2D fallbacks.
+ */
+function tierSnapshot(): GlobeTier {
+  if (capableSnapshot()) return "full";
+  if (window.matchMedia(QUERIES[0]).matches || lowPower()) return "none";
+  return hasWebGL() ? "lite" : "none";
+}
+
+const serverNone = (): GlobeTier => "none";
+
+/** Which 3D Moon this device should get ("none" during SSR and the first client render). */
+export function useGlobeTier(): GlobeTier {
+  return useSyncExternalStore(subscribe, tierSnapshot, serverNone);
+}
+
 function reducedSnapshot(): boolean {
   return window.matchMedia(QUERIES[0]).matches;
 }

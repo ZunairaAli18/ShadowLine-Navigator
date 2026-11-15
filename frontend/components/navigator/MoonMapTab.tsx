@@ -11,7 +11,7 @@ import { ApiError, getGlobeGeometry, getSites, type GlobeGeometry } from "@/lib/
 import type { SelectedState } from "@/lib/countdowns";
 import { interpLatLon, latLonToBody } from "@/lib/globeMath";
 import type { Location } from "@/lib/navState";
-import { useCapable, useReducedMotionPref } from "@/lib/useCapable";
+import { useGlobeTier, useReducedMotionPref } from "@/lib/useCapable";
 
 /** three.js is only loaded when the Moon map tab opens on a capable device (no SSR). */
 const MoonMap3D = dynamic(() => import("@/components/moon/MoonMap"), {
@@ -33,8 +33,14 @@ const fmtLL = (lat: number, lon: number) =>
   `${Math.abs(lat).toFixed(2)}°${lat < 0 ? "S" : "N"}, ${Math.abs(lon).toFixed(2)}°${lon < 0 ? "W" : "E"}`;
 
 export function MoonMapTab({ location, window: win, pos, selected, onSelectSite, onPick }: Props) {
-  const capable = useCapable();
+  // 3D on desktops (full) and on touch devices with WebGL (lite); 2D for the rest, on failure, or by choice.
+  const tier = useGlobeTier();
   const reduced = useReducedMotionPref();
+  const [glFailed, setGlFailed] = useState(false);
+  const [want2d, setWant2d] = useState(false);
+  const can3d = tier !== "none" && !glFailed;
+  const capable = can3d && !want2d;
+  const lite = tier === "lite";
   const [sites, setSites] = useState<MapSite[]>([]);
   const [geo, setGeo] = useState<GlobeGeometry | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -107,10 +113,33 @@ export function MoonMapTab({ location, window: win, pos, selected, onSelectSite,
             Light and Earth across the Moon
           </h2>
         </div>
-        <p className="font-mono text-xs text-lunar-300" aria-live="polite">
-          {currentSite?.name ?? (location.kind === "custom" ? `Custom ${fmtLL(location.lat, location.lon)}` : "")} · {status}
-        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          {can3d && (
+            <div className="flex rounded-full border border-border p-0.5" role="radiogroup" aria-label="Map view">
+              {([false, true] as const).map((flat) => (
+                <button
+                  key={String(flat)}
+                  type="button"
+                  role="radio"
+                  aria-checked={want2d === flat}
+                  onClick={() => setWant2d(flat)}
+                  className={`min-h-7 rounded-full px-3 text-xs font-semibold transition-colors ${want2d === flat ? "bg-accent text-bg" : "text-muted hover:text-text"}`}
+                >
+                  {flat ? "2D map" : "3D globe"}
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="font-mono text-xs text-lunar-300" aria-live="polite">
+            {currentSite?.name ?? (location.kind === "custom" ? `Custom ${fmtLL(location.lat, location.lon)}` : "")} · {status}
+          </p>
+        </div>
       </div>
+      {glFailed && (
+        <p className="text-sm text-muted" role="status">
+          The 3D globe couldn&rsquo;t start on this device, so here is the 2D map.
+        </p>
+      )}
 
       {error ? (
         <LiveError message={error} onRetry={() => setAttempt((a) => a + 1)} />
@@ -141,7 +170,9 @@ export function MoonMapTab({ location, window: win, pos, selected, onSelectSite,
             ))}
           </div>
           <MoonMap3D
-            className="h-[460px] w-full lg:h-[560px]"
+            className={lite ? "aspect-square max-h-[560px] w-full sm:aspect-auto sm:h-[480px]" : "h-[460px] w-full lg:h-[560px]"}
+            lite={lite}
+            onFail={() => setGlFailed(true)}
             sunDirBody={sub.sunBody}
             earthDirBody={sub.earthBody}
             sites={sites}
@@ -152,7 +183,9 @@ export function MoonMapTab({ location, window: win, pos, selected, onSelectSite,
             onSelectSite={select}
             onPick={pick}
           />
-          <p className="hud absolute bottom-3 right-3 z-10 hidden sm:block">Drag to rotate · scroll to zoom · click to choose</p>
+          <p className={`hud absolute bottom-3 right-3 z-10 ${lite ? "left-3 text-right" : "hidden sm:block"}`}>
+            {lite ? "One finger to rotate · pinch to zoom · tap to choose" : "Drag to rotate · scroll to zoom · click to choose"}
+          </p>
         </Card>
       ) : (
         <Card>

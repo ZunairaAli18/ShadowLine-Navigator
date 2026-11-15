@@ -12,21 +12,28 @@ import { HudReadout } from "@/components/landing/HudReadout";
 import { MoonGlobeLazy, type GlobeSite } from "@/components/moon/MoonGlobeLazy";
 import { getSites, getSnapshot } from "@/lib/api";
 import { sunDirFromAzEl, type Vec3 } from "@/lib/sun";
-import { useCapable } from "@/lib/useCapable";
+import { useGlobeTier } from "@/lib/useCapable";
 
 /**
- * Hero. Capable devices: a real-Sun-lit 3D Moon half-cropped on the right (HeroSky shows until it's ready).
- * Mobile / low-power / reduced motion: the 2D HeroSky scene only.
+ * Hero.
+ * - full (desktop): a real-Sun-lit 3D Moon half-cropped on the right, drag to rotate (HeroSky shows until it's ready).
+ * - lite (phones/tablets): a smaller 3D Moon centred below the text, slow sway, no drag (the page scrolls over it).
+ * - none (no WebGL, low-power/save-data, reduced motion) or a WebGL failure: the 2D HeroSky scene only.
  */
 export function Hero() {
-  const capable = useCapable();
+  const tier = useGlobeTier();
+  const [failed, setFailed] = useState(false);
+  const capable = tier === "full" && !failed;
+  const lite = tier === "lite" && !failed;
+  const onFail = useCallback(() => setFailed(true), []);
   const [globeReady, setGlobeReady] = useState(false);
   const [sunDir, setSunDir] = useState<Vec3>();
   const [sites, setSites] = useState<GlobeSite[]>([]);
   const onReady = useCallback(() => setGlobeReady(true), []);
 
+  const wants3d = capable || lite;
   useEffect(() => {
-    if (!capable) return;
+    if (!wants3d) return;
     const ctrl = new AbortController();
     // Real Sun direction: Sun az/el at the sub-Earth point (lat 0, lon 0), see lib/sun.ts.
     getSnapshot({ lat: 0, lon: 0, time: new Date() }, { signal: ctrl.signal })
@@ -36,13 +43,13 @@ export function Hero() {
       .then((r) => setSites(r.sites.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon }))))
       .catch(() => {});
     return () => ctrl.abort();
-  }, [capable]);
+  }, [wants3d]);
 
-  const show3d = capable && globeReady;
+  const show3d = wants3d && globeReady;
 
   return (
     // Below lg the 2D band sits under the text: pad by ~70% of its height (its top is empty sky).
-    <section aria-labelledby="hero-title" className="relative overflow-hidden pb-[32vw] lg:min-h-[100svh] lg:pb-0">
+    <section aria-labelledby="hero-title" className={`relative overflow-hidden ${lite ? "pb-10" : "pb-[32vw]"} lg:min-h-[100svh] lg:pb-0`}>
       <OutlineText
         text="SHADOWLINE"
         className="absolute -left-[2vw] top-[22%] text-[21vw] opacity-70 lg:top-[14%]"
@@ -55,7 +62,7 @@ export function Hero() {
               show3d ? "opacity-100" : "opacity-0"
             }`}
           >
-            <MoonGlobeLazy sunDir={sunDir} sites={sites} mode="hero" onReady={onReady} className="h-full w-full" />
+            <MoonGlobeLazy sunDir={sunDir} sites={sites} mode="hero" onReady={onReady} onFail={onFail} className="h-full w-full" />
           </div>
           <TickRuler className="absolute left-3 top-1/2 hidden -translate-y-1/2 lg:flex" />
           <p aria-hidden className="hud absolute bottom-10 right-6 hidden [writing-mode:vertical-rl] lg:block">
@@ -77,7 +84,23 @@ export function Hero() {
         <HudReadout className="mt-10" />
       </div>
 
-      {/* 2D scene: placeholder while 3D loads, and the fallback everywhere 3D doesn't run. */}
+      {lite && (
+        // Centred below the text, whole disk visible. pointer-events are off inside, so scrolling is never blocked.
+        <div className="relative mx-auto mt-6 aspect-square w-[min(80vw,26rem)]">
+          <div
+            aria-hidden={!show3d}
+            className={`absolute inset-0 transition-opacity duration-[1400ms] ${show3d ? "opacity-100" : "opacity-0"}`}
+          >
+            <MoonGlobeLazy sunDir={sunDir} sites={sites} mode="hero" lite onReady={onReady} onFail={onFail} className="h-full w-full" />
+          </div>
+          {!show3d && (
+            <div aria-hidden className="absolute inset-[12%] rounded-full bg-[radial-gradient(circle_at_35%_35%,var(--color-lunar-700),transparent_70%)] opacity-60 motion-safe:animate-pulse" />
+          )}
+        </div>
+      )}
+
+      {/* 2D scene: placeholder while the desktop 3D loads, and the fallback everywhere 3D doesn't run. */}
+      {!lite && (
       <div
         className={`pointer-events-none absolute inset-x-0 bottom-0 h-[min(40svh,46.67vw)] transition-opacity duration-[1400ms] ${
           show3d ? "opacity-0" : "opacity-100"
@@ -85,6 +108,7 @@ export function Hero() {
       >
         <HeroSky className="!h-full" fit="slice" />
       </div>
+      )}
     </section>
   );
 }

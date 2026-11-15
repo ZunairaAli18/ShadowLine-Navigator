@@ -5,6 +5,7 @@ import { Canvas, useFrame, useThree, type ThreeElements } from "@react-three/fib
 import { forwardRef, Suspense, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
 
+import { GlBoundary } from "@/components/fx/GlBoundary";
 import { bodyToScene, latLonToScene, type Vec3 } from "@/lib/sun";
 
 /**
@@ -15,6 +16,8 @@ import { bodyToScene, latLonToScene, type Vec3 } from "@/lib/sun";
  * - mode "hero": slow sway + drag to rotate. mode "fly": camera follows progressRef (0..1) from the full
  *   Moon down to the south pole (scroll scene).
  * - Renders only while on screen and the tab is visible (frameloop "never" otherwise). DPR capped at 2.
+ * - lite (phones/tablets): DPR capped at 1.5, fewer sphere segments, no drag (the canvas ignores touches so the
+ *   page scrolls over it), slow sway only. A WebGL failure calls onFail so the caller can show the 2D scene.
  */
 
 export type GlobeSite = { id: string; lat: number; lon: number };
@@ -25,6 +28,10 @@ type Props = {
   mode?: "hero" | "fly";
   progressRef?: RefObject<number>;
   onReady?: () => void;
+  /** Lighter rendering for touch devices (see above). */
+  lite?: boolean;
+  /** WebGL / three.js failed to start. */
+  onFail?: (message: string) => void;
   className?: string;
 };
 
@@ -58,7 +65,7 @@ function SiteMarker({ position, phase }: { position: Vec3; phase: number }) {
  * in scene axes (lon 0 at +X, see lib/sun.ts). Shared by the hero/fly globe and the navigator's Moon map.
  * Suspends while the textures load.
  */
-export const MoonSurface = forwardRef<THREE.Mesh, ThreeElements["mesh"]>(function MoonSurface(props, ref) {
+export const MoonSurface = forwardRef<THREE.Mesh, ThreeElements["mesh"] & { lite?: boolean }>(function MoonSurface({ lite = false, ...props }, ref) {
   const [color, disp] = useTexture(["/textures/moon-color-2k.jpg", "/textures/moon-displacement-1k.jpg"], (tex) => {
     const [c] = tex as THREE.Texture[];
     c.colorSpace = THREE.SRGBColorSpace;
@@ -66,7 +73,7 @@ export const MoonSurface = forwardRef<THREE.Mesh, ThreeElements["mesh"]>(functio
   });
   return (
     <mesh ref={ref} {...props}>
-      <sphereGeometry args={[1, 192, 96]} />
+      <sphereGeometry args={lite ? [1, 96, 48] : [1, 192, 96]} />
       <meshStandardMaterial
         map={color}
         displacementMap={disp}
@@ -81,7 +88,7 @@ export const MoonSurface = forwardRef<THREE.Mesh, ThreeElements["mesh"]>(functio
   );
 });
 
-function Moon({ sunDir, sites, mode, progressRef, onReady }: Required<Pick<Props, "mode">> & Omit<Props, "className" | "mode">) {
+function Moon({ sunDir, sites, mode, progressRef, onReady, lite }: Required<Pick<Props, "mode">> & Omit<Props, "className" | "mode" | "onFail">) {
   const group = useRef<THREE.Group>(null);
   const light = useRef<THREE.DirectionalLight>(null);
   const target = useMemo(() => new THREE.Vector3(...bodyToScene(sunDir ?? DEFAULT_SUN)).normalize(), [sunDir]);
@@ -134,7 +141,7 @@ function Moon({ sunDir, sites, mode, progressRef, onReady }: Required<Pick<Props
     // group.rotation.y is set every frame from viewRot (see above).
     <group ref={group}>
       <directionalLight ref={light} intensity={3.4} color="#fff6e8" />
-      <MoonSurface />
+      <MoonSurface lite={lite} />
       {sites?.map((s, i) => (
         <SiteMarker key={s.id} position={latLonToScene(s.lat, s.lon, 1.006)} phase={i * 0.9} />
       ))}
@@ -142,7 +149,7 @@ function Moon({ sunDir, sites, mode, progressRef, onReady }: Required<Pick<Props
   );
 }
 
-export default function MoonGlobe({ sunDir, sites, mode = "hero", progressRef, onReady, className = "" }: Props) {
+export default function MoonGlobe({ sunDir, sites, mode = "hero", progressRef, onReady, lite = false, onFail, className = "" }: Props) {
   const wrapper = useRef<HTMLDivElement>(null);
   const [onScreen, setOnScreen] = useState(false);
   const [tabVisible, setTabVisible] = useState(true);
@@ -163,20 +170,22 @@ export default function MoonGlobe({ sunDir, sites, mode = "hero", progressRef, o
   const active = onScreen && tabVisible;
 
   return (
-    <div ref={wrapper} className={className} data-globe-active={active ? "true" : "false"}>
+    <div ref={wrapper} className={`${className} ${lite ? "pointer-events-none [&_*]:!pointer-events-none" : ""}`} data-globe-active={active ? "true" : "false"} data-globe-lite={lite ? "true" : undefined}>
+      <GlBoundary onError={(m) => onFail?.(m)}>
       <Canvas
-        dpr={[1, 2]}
+        dpr={lite ? [1, 1.5] : [1, 2]}
         frameloop={active ? "always" : "never"}
         gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
         camera={{ position: [0, 0, mode === "fly" ? 4.4 : 4.1], fov: 32, near: 0.05, far: 50 }}
-        aria-label={mode === "fly" ? undefined : "3D Moon, lit by the Sun's real current position. Drag to rotate."}
+        aria-label={mode === "fly" ? undefined : `3D Moon, lit by the Sun's real current position.${lite ? "" : " Drag to rotate."}`}
       >
         <ambientLight intensity={0.05} color="#9fb8ff" />
         <Suspense fallback={null}>
-          <Moon sunDir={sunDir} sites={sites} mode={mode} progressRef={progressRef} onReady={onReady} />
+          <Moon sunDir={sunDir} sites={sites} mode={mode} progressRef={progressRef} onReady={onReady} lite={lite} />
         </Suspense>
-        {mode === "hero" && <OrbitControls enableZoom={false} enablePan={false} rotateSpeed={0.45} enableDamping />}
+        {mode === "hero" && !lite && <OrbitControls enableZoom={false} enablePan={false} rotateSpeed={0.45} enableDamping />}
       </Canvas>
+      </GlBoundary>
     </div>
   );
 }

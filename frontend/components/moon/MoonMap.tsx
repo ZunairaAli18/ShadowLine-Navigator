@@ -5,6 +5,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
+import { GlBoundary } from "@/components/fx/GlBoundary";
 import { MoonSurface } from "@/components/moon/MoonGlobe";
 import { hitToLatLon, latLonToSceneVec } from "@/lib/globeMath";
 import { bodyToScene, type Vec3 } from "@/lib/sun";
@@ -33,6 +34,10 @@ type Props = {
   reduced: boolean;
   onSelectSite: (id: string) => void;
   onPick: (lat: number, lon: number) => void;
+  /** Touch devices: DPR capped at 1.5, fewer sphere segments. One-finger rotate + pinch zoom (OrbitControls). */
+  lite?: boolean;
+  /** WebGL / three.js failed to start (the tab falls back to the 2D map). */
+  onFail?: (message: string) => void;
   className?: string;
 };
 
@@ -138,7 +143,7 @@ function placeLabel(el: HTMLDivElement | null, at: Vec3 | null, camera: THREE.Ca
 
 type SceneProps = Props & { hover: string | null; setHover: (id: string | null) => void; labels: LabelRefs };
 
-function Scene({ sunDirBody, earthDirBody, sites, currentSiteId, current, preset, reduced, onSelectSite, onPick, hover, setHover, labels }: SceneProps) {
+function Scene({ sunDirBody, earthDirBody, sites, currentSiteId, current, preset, reduced, onSelectSite, onPick, hover, setHover, labels, lite }: SceneProps) {
   const { camera, invalidate } = useThree();
   const controls = useThree((s) => s.controls) as unknown as { update: () => void } | null;
   const moon = useRef<THREE.Mesh>(null);
@@ -216,7 +221,7 @@ function Scene({ sunDirBody, earthDirBody, sites, currentSiteId, current, preset
       <ambientLight intensity={0.07} color="#9fb8ff" />
       <directionalLight position={sun.clone().multiplyScalar(10)} intensity={3.2} color="#fff6e8" />
       <Suspense fallback={null}>
-        <MoonSurface ref={moon} onClick={onSurfaceClick} />
+        <MoonSurface ref={moon} onClick={onSurfaceClick} lite={lite} />
       </Suspense>
       <EarthZone earth={earth} sun={sun} />
 
@@ -275,8 +280,9 @@ export default function MoonMap(props: Props) {
 
   return (
     <div ref={wrapper} className={`relative ${props.className ?? ""}`} data-globe-active={active ? "true" : "false"}>
+      <GlBoundary onError={(m) => props.onFail?.(m)}>
       <Canvas
-        dpr={[1, 2]}
+        dpr={props.lite ? [1, 1.5] : [1, 2]}
         frameloop={active ? "demand" : "never"}
         gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
         camera={{ position: [3.9, 0.58, 0], fov: 35, near: 0.05, far: 50 }}
@@ -284,6 +290,7 @@ export default function MoonMap(props: Props) {
       >
         <Scene {...props} hover={hover} setHover={setHover} labels={labels} />
       </Canvas>
+      </GlBoundary>
       {/* Labels: positioned by Scene's useFrame (opacity 0 until placed and whenever the point faces away). */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
         {currentSite && (

@@ -7,6 +7,7 @@ import * as THREE from "three";
 
 import { GlBoundary } from "@/components/fx/GlBoundary";
 import { MoonSurface } from "@/components/moon/MoonGlobe";
+import { formatLatLon } from "@/lib/format";
 import { hitToLatLon, latLonToSceneVec } from "@/lib/globeMath";
 import { bodyToScene, type Vec3 } from "@/lib/sun";
 
@@ -141,9 +142,22 @@ function placeLabel(el: HTMLDivElement | null, at: Vec3 | null, camera: THREE.Ca
   el.style.opacity = facing ? "1" : "0";
 }
 
-type SceneProps = Props & { hover: string | null; setHover: (id: string | null) => void; labels: LabelRefs };
+/** Write the cursor readout directly (outside components, so it isn't a hook-value mutation). null hides it. */
+export function setReadout(el: HTMLElement | null, text: string | null) {
+  if (!el) return;
+  if (text !== null) el.textContent = text;
+  el.style.opacity = text === null ? "0" : "1";
+}
 
-function Scene({ sunDirBody, earthDirBody, sites, currentSiteId, current, preset, reduced, onSelectSite, onPick, hover, setHover, labels, lite }: SceneProps) {
+type SceneProps = Props & {
+  hover: string | null;
+  setHover: (id: string | null) => void;
+  labels: LabelRefs;
+  /** Cursor readout element (desktop): lat/lon under the mouse, written directly (no re-render per move). */
+  cursor: React.RefObject<HTMLDivElement | null>;
+};
+
+function Scene({ sunDirBody, earthDirBody, sites, currentSiteId, current, preset, reduced, onSelectSite, onPick, hover, setHover, labels, lite, cursor }: SceneProps) {
   const { camera, invalidate } = useThree();
   const controls = useThree((s) => s.controls) as unknown as { update: () => void } | null;
   const moon = useRef<THREE.Mesh>(null);
@@ -216,12 +230,20 @@ function Scene({ sunDirBody, earthDirBody, sites, currentSiteId, current, preset
     onPick(ll.lat, ll.lon);
   };
 
+  const onSurfaceMove = (e: ThreeEvent<PointerEvent>) => {
+    if (e.pointerType !== "mouse") return; // touch: no hover readout
+    const local = e.object.worldToLocal(e.point.clone());
+    const ll = hitToLatLon([local.x, local.y, local.z]);
+    setReadout(cursor.current, `⌖ ${formatLatLon(ll.lat, ll.lon)}`);
+  };
+  const onSurfaceOut = () => setReadout(cursor.current, null);
+
   return (
     <>
       <ambientLight intensity={0.07} color="#9fb8ff" />
       <directionalLight position={sun.clone().multiplyScalar(10)} intensity={3.2} color="#fff6e8" />
       <Suspense fallback={null}>
-        <MoonSurface ref={moon} onClick={onSurfaceClick} lite={lite} />
+        <MoonSurface ref={moon} onClick={onSurfaceClick} onPointerMove={onSurfaceMove} onPointerOut={onSurfaceOut} lite={lite} />
       </Suspense>
       <EarthZone earth={earth} sun={sun} />
 
@@ -276,6 +298,7 @@ export default function MoonMap(props: Props) {
   const labels = useMemo<LabelRefs>(() => ({ current: labelCurrent, hover: labelHover, custom: labelCustom }), []);
   const currentSite = props.sites.find((s) => s.id === props.currentSiteId) ?? null;
   const hoverSite = hover && hover !== props.currentSiteId ? (props.sites.find((s) => s.id === hover) ?? null) : null;
+  const cursor = useRef<HTMLDivElement>(null);
   const where = (s: MapSite) => `${s.name} · ${s.region.replace("_", " ")}`;
 
   return (
@@ -288,7 +311,7 @@ export default function MoonMap(props: Props) {
         camera={{ position: [3.9, 0.58, 0], fov: 35, near: 0.05, far: 50 }}
         aria-label="Interactive 3D Moon: drag to rotate, scroll to zoom, click a site to select it or the surface to set a custom site."
       >
-        <Scene {...props} hover={hover} setHover={setHover} labels={labels} />
+        <Scene {...props} hover={hover} setHover={setHover} labels={labels} cursor={cursor} />
       </Canvas>
       </GlBoundary>
       {/* Labels: positioned by Scene's useFrame (opacity 0 until placed and whenever the point faces away). */}
@@ -298,6 +321,7 @@ export default function MoonMap(props: Props) {
             <span className="absolute block h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-sun/80 motion-safe:animate-ping" />
             <span className="glass absolute -translate-x-1/2 -translate-y-[calc(100%+14px)] whitespace-nowrap rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-text">
               ◎ {where(currentSite)}
+              <span className="block normal-case tracking-normal text-lunar-300">{formatLatLon(currentSite.lat, currentSite.lon)}</span>
             </span>
           </div>
         )}
@@ -305,6 +329,7 @@ export default function MoonMap(props: Props) {
           <div ref={labelHover} className="absolute left-0 top-0 opacity-0">
             <span className="glass absolute -translate-x-1/2 -translate-y-[calc(100%+12px)] whitespace-nowrap rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-text">
               {where(hoverSite)}
+              <span className="block normal-case tracking-normal text-lunar-300">{formatLatLon(hoverSite.lat, hoverSite.lon)}</span>
             </span>
           </div>
         )}
@@ -312,10 +337,17 @@ export default function MoonMap(props: Props) {
           <div ref={labelCustom} className="absolute left-0 top-0 opacity-0">
             <span className="glass absolute -translate-x-1/2 -translate-y-[calc(100%+12px)] whitespace-nowrap rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-accent">
               ◎ Custom site
+              <span className="block normal-case tracking-normal text-lunar-300">{formatLatLon(props.current.lat, props.current.lon)}</span>
             </span>
           </div>
         )}
       </div>
+      {/* Cursor readout (desktop): lat/lon under the mouse while it's over the surface. */}
+      <div
+        ref={cursor}
+        aria-hidden
+        className="glass pointer-events-none absolute bottom-3 left-3 z-10 rounded-md px-2 py-1 font-mono text-[11px] text-lunar-200 opacity-0 transition-opacity"
+      />
     </div>
   );
 }

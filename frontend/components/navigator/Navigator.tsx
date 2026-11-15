@@ -19,6 +19,7 @@ import { useNavigatorData } from "@/hooks/useNavigatorData";
 import { useNavState } from "@/hooks/useNavState";
 import { usePlayback } from "@/hooks/usePlayback";
 import { encodeScenarios, presetFlatVsReal } from "@/lib/compareUrl";
+import { formatLatLon } from "@/lib/format";
 import { stateAt } from "@/lib/countdowns";
 import { clampPos, interpAt, posForTime, timeAt } from "@/lib/interp";
 import { type Location, type NavMode, type NavState, type NavTab, type TerrainChoice } from "@/lib/navState";
@@ -28,8 +29,6 @@ import { storeMode, useStoredMode } from "@/lib/useStoredMode";
 
 const URL_WRITE_MS = 250; // ~4 writes/s while scrubbing or playing
 
-const fmtLatLon = (lat: number, lon: number) =>
-  `${Math.abs(lat).toFixed(2)}°${lat < 0 ? "S" : "N"}, ${Math.abs(lon).toFixed(2)}°${lon < 0 ? "W" : "E"}`;
 
 /** Tiny "you are here" marker: a dot inside a ring. */
 function HereIcon() {
@@ -309,7 +308,7 @@ export function Navigator() {
                   <span>
                     View from{" "}
                     <span className="text-lunar-200">{data.site.id === "custom" ? "a custom point" : data.site.name}</span>{" "}
-                    <span className="font-mono text-lunar-400">({fmtLatLon(data.site.lat, data.site.lon)})</span> · looking all around from the lander
+                    <span className="font-mono text-lunar-400">({formatLatLon(data.site.lat, data.site.lon, mode === "expert" ? 4 : 2)})</span> · looking all around from the lander
                   </span>
                 </p>
               )}

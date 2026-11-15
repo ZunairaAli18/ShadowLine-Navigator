@@ -2,10 +2,12 @@
 
 /* eslint-disable @next/next/no-img-element -- a plain <img> keeps the map's pixel grid exact for click -> lat/lon */
 
-import { useEffect, useRef, type MouseEvent } from "react";
+import { useEffect, useRef, type MouseEvent, type PointerEvent } from "react";
 
 import type { MapSite } from "@/components/moon/MoonMap";
+import { formatLatLon, regionLabel } from "@/lib/format";
 import { equirectToLatLon, latLonToEquirect, latLonToPolar, polarToLatLon, type LatLon } from "@/lib/globeMath";
+import type { Region } from "@/lib/api";
 
 /**
  * 2D Moon map for phones, tablets, low-power devices and reduced motion: an equirectangular map (same NASA
@@ -28,7 +30,18 @@ const INSET_PX = 260;
 
 const pct = (v: number) => `${(v * 100).toFixed(3)}%`;
 
-function Dot({ label, x, y, current, onClick }: { label: string; x: string; y: string; current: boolean; onClick: () => void }) {
+/** Write the cursor readout directly (no re-render per mouse move). null hides it. */
+function setReadout(el: HTMLElement | null, text: string | null) {
+  if (!el) return;
+  if (text !== null) el.textContent = text;
+  el.style.opacity = text === null ? "0" : "1";
+}
+
+function Dot({ site, x, y, u, current, onClick }: { site: MapSite; x: string; y: string; u: number; current: boolean; onClick: () => void }) {
+  const coords = formatLatLon(site.lat, site.lon);
+  const region = regionLabel(site.region as Region);
+  // Keep the tooltip inside the map near its left/right edges.
+  const align = u < 0.25 ? "left-0" : u > 0.75 ? "right-0" : "left-1/2 -translate-x-1/2";
   return (
     <button
       type="button"
@@ -36,13 +49,22 @@ function Dot({ label, x, y, current, onClick }: { label: string; x: string; y: s
         e.stopPropagation();
         onClick();
       }}
-      aria-label={`${label}${current ? " (selected)" : ""}`}
+      aria-label={`${site.name}, ${region}, ${coords}${current ? " (selected)" : ""}`}
       aria-pressed={current}
-      title={label}
-      className="absolute grid h-6 w-6 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full"
+      className="group absolute grid h-6 w-6 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full focus-visible:z-20 hover:z-20"
       style={{ left: x, top: y }}
     >
       <span className={`block rounded-full ${current ? "h-3 w-3 bg-sun ring-2 ring-sun/50" : "h-2 w-2 bg-accent ring-1 ring-bg"}`} />
+      {/* Tooltip on hover and focus (a tap focuses the button too). */}
+      <span
+        aria-hidden
+        className={`glass pointer-events-none absolute bottom-full mb-1.5 hidden whitespace-nowrap rounded-md px-2 py-1 text-left font-mono text-[10px] leading-4 text-text group-hover:block group-focus:block ${align}`}
+      >
+        <span className="block uppercase tracking-[0.1em]">{site.name}</span>
+        <span className="block text-lunar-300">
+          {region} · {coords}
+        </span>
+      </span>
     </button>
   );
 }
@@ -102,7 +124,27 @@ function usePolarCanvas(ref: React.RefObject<HTMLCanvasElement | null>) {
 
 export function MoonMap2D({ sites, currentSiteId, current, subsolar, subearth, onSelectSite, onPick }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const readout = useRef<HTMLSpanElement>(null);
+  const readoutInset = useRef<HTMLSpanElement>(null);
   usePolarCanvas(canvas);
+
+  // Cursor readouts (mouse only): lat/lon under the pointer.
+  const moveMap = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== "mouse") return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const ll = equirectToLatLon((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+    setReadout(readout.current, `⌖ ${formatLatLon(ll.lat, ll.lon)}`);
+  };
+  const moveInset = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== "mouse") return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 2 - 1;
+    const y = ((e.clientY - r.top) / r.height) * 2 - 1;
+    if (x * x + y * y > 1) return setReadout(readoutInset.current, null);
+    const ll = polarToLatLon(x, y, INSET_SPAN);
+    setReadout(readoutInset.current, `⌖ ${formatLatLon(ll.lat, ll.lon)}`);
+  };
+  const selected = sites.find((s) => s.id === currentSiteId);
 
   const clickMap = (e: MouseEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -129,22 +171,33 @@ export function MoonMap2D({ sites, currentSiteId, current, subsolar, subearth, o
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
       <figure className="min-w-0">
         <div
-          className="relative aspect-[2/1] w-full cursor-crosshair overflow-hidden rounded-xl border border-border"
+          className="relative aspect-[2/1] w-full cursor-crosshair rounded-xl border border-border"
           onClick={clickMap}
+          onPointerMove={moveMap}
+          onPointerLeave={() => setReadout(readout.current, null)}
           role="group"
           aria-label="Map of the whole Moon. Tap a dot to select a site, or anywhere else to set custom coordinates."
         >
-          <img src={TEXTURE} alt="NASA LRO colour map of the Moon, near side in the centre" className="absolute inset-0 h-full w-full select-none object-fill" draggable={false} />
+          <img src={TEXTURE} alt="NASA LRO colour map of the Moon, near side in the centre" className="absolute inset-0 h-full w-full select-none rounded-xl object-fill" draggable={false} />
           {/* graticule: equator and the 0° meridian (faces Earth) */}
           <span aria-hidden className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-lunar-300/25" />
           <span aria-hidden className="pointer-events-none absolute inset-y-0 left-1/2 w-px bg-lunar-300/25" />
           <Mark x={pct(eq(subsolar).u)} y={pct(eq(subsolar).v)} icon="☀" label="Sun overhead here" />
           <Mark x={pct(eq(subearth).u)} y={pct(eq(subearth).v)} icon="🌍" label="Earth overhead here" />
           {sites.map((s) => (
-            <Dot key={s.id} label={s.name} x={pct(eq(s).u)} y={pct(eq(s).v)} current={s.id === currentSiteId} onClick={() => onSelectSite(s.id)} />
+            <Dot key={s.id} site={s} u={eq(s).u} x={pct(eq(s).u)} y={pct(eq(s).v)} current={s.id === currentSiteId} onClick={() => onSelectSite(s.id)} />
           ))}
           {currentSiteId === null && <Mark x={pct(eq(current).u)} y={pct(eq(current).v)} icon="◎" label="Custom site" />}
+          <span
+            ref={readout}
+            aria-hidden
+            className="glass pointer-events-none absolute bottom-2 left-2 rounded-md px-2 py-0.5 font-mono text-[11px] text-lunar-200 opacity-0 transition-opacity"
+          />
         </div>
+        <p className="mt-2 font-mono text-[11px] text-lunar-300" aria-live="polite">
+          ◎ {selected ? `${selected.name} · ${regionLabel(selected.region as Region)} · ` : "Custom site · "}
+          {formatLatLon(selected?.lat ?? current.lat, selected?.lon ?? current.lon)}
+        </p>
         <figcaption className="mt-2 flex flex-wrap justify-between gap-2 font-mono text-[10px] uppercase tracking-[0.15em] text-lunar-500">
           <span>180°W</span>
           <span>0° · faces Earth</span>
@@ -154,12 +207,14 @@ export function MoonMap2D({ sites, currentSiteId, current, subsolar, subearth, o
 
       <figure className="mx-auto w-full max-w-[280px]">
         <div
-          className="relative aspect-square w-full cursor-crosshair overflow-hidden rounded-full border border-border bg-bg"
+          className="relative aspect-square w-full cursor-crosshair rounded-full border border-border bg-bg"
           onClick={clickInset}
+          onPointerMove={moveInset}
+          onPointerLeave={() => setReadout(readoutInset.current, null)}
           role="group"
           aria-label="South polar view, 80°S to 90°S, seen from below. Tap a dot to select a site or anywhere to set custom coordinates."
         >
-          <canvas ref={canvas} width={INSET_PX} height={INSET_PX} className="absolute inset-0 h-full w-full" aria-hidden />
+          <canvas ref={canvas} width={INSET_PX} height={INSET_PX} className="absolute inset-0 h-full w-full rounded-full" aria-hidden />
           <span aria-hidden className="pointer-events-none absolute inset-[25%] rounded-full border border-lunar-300/20" />
           {[subsolar, subearth].map((ll, k) => {
             const p = po(ll);
@@ -167,9 +222,14 @@ export function MoonMap2D({ sites, currentSiteId, current, subsolar, subearth, o
           })}
           {polarSites.map((s) => {
             const p = po(s);
-            return <Dot key={s.id} label={s.name} x={pct(p.x)} y={pct(p.y)} current={s.id === currentSiteId} onClick={() => onSelectSite(s.id)} />;
+            return <Dot key={s.id} site={s} u={p.x} x={pct(p.x)} y={pct(p.y)} current={s.id === currentSiteId} onClick={() => onSelectSite(s.id)} />;
           })}
           {currentSiteId === null && po(current).inside && <Mark x={pct(po(current).x)} y={pct(po(current).y)} icon="◎" label="Custom site" />}
+          <span
+            ref={readoutInset}
+            aria-hidden
+            className="glass pointer-events-none absolute bottom-[14%] left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-0.5 font-mono text-[11px] text-lunar-200 opacity-0 transition-opacity"
+          />
         </div>
         <figcaption className="mt-2 text-center font-mono text-[10px] uppercase tracking-[0.15em] text-lunar-500">
           South pole · 80–90°S · 0° up · ring = 85°S

@@ -9,6 +9,7 @@ import type { CameraPreset, MapSite } from "@/components/moon/MoonMap";
 import { Card } from "@/components/ui";
 import { ApiError, getGlobeGeometry, getSites, type GlobeGeometry } from "@/lib/api";
 import type { SelectedState } from "@/lib/countdowns";
+import { formatLatLon } from "@/lib/format";
 import { interpLatLon, latLonToBody } from "@/lib/globeMath";
 import type { Location } from "@/lib/navState";
 import { useGlobeTier, useReducedMotionPref } from "@/lib/useCapable";
@@ -29,8 +30,7 @@ type Props = {
   onPick: (lat: number, lon: number) => void;
 };
 
-const fmtLL = (lat: number, lon: number) =>
-  `${Math.abs(lat).toFixed(2)}°${lat < 0 ? "S" : "N"}, ${Math.abs(lon).toFixed(2)}°${lon < 0 ? "W" : "E"}`;
+const fmtLL = (lat: number, lon: number) => formatLatLon(lat, lon);
 
 export function MoonMapTab({ location, window: win, pos, selected, onSelectSite, onPick }: Props) {
   // 3D on desktops (full) and on touch devices with WebGL (lite); 2D for the rest, on failure, or by choice.

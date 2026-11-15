@@ -479,7 +479,11 @@ function Scene(props: SceneProps) {
     const down = (e: PointerEvent) => {
       if ((e.target as HTMLElement).closest("button, input, label")) return;
       drag = { x: e.clientX, y: e.clientY };
-      el.setPointerCapture(e.pointerId);
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch {
+        /* pointer already gone (e.g. a synthetic or cancelled touch): dragging still works without capture */
+      }
     };
     const move = (e: PointerEvent) => {
       if (!drag) return;

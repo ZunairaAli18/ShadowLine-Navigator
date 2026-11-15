@@ -4,16 +4,49 @@ import { useEffect, useId, useMemo, useState } from "react";
 
 import { Pill } from "@/components/ui";
 import { getSites, type Region, type Site } from "@/lib/api";
-import { regionLabel } from "@/lib/format";
+import { formatLatLon, latLonPlain, regionLabel } from "@/lib/format";
 import { normalizeLon, validLat, type Location } from "@/lib/navState";
 
 const REGION_ORDER: Region[] = ["south_pole", "south_polar", "equatorial", "far_side", "north_polar", "north_pole"];
 const CUSTOM = "__custom__";
 
-type Props = { value: Location; onChange: (loc: Location) => void };
+type Props = {
+  value: Location;
+  onChange: (loc: Location) => void;
+  /** Decimals in the coordinates chip (Expert mode: 4). The dropdown always uses 2. */
+  precision?: number;
+};
+
+/** Small chip with the selected coordinates; click copies "lat, lon" (east-positive decimals). */
+function CoordsChip({ lat, lon, precision }: { lat: number; lon: number; precision: number }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const t = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(t);
+  }, [copied]);
+  const text = formatLatLon(lat, lon, precision);
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        navigator.clipboard?.writeText(latLonPlain(lat, lon)).then(
+          () => setCopied(true),
+          () => {},
+        );
+      }}
+      title={`Copy "${latLonPlain(lat, lon)}"`}
+      aria-label={`Coordinates ${text}. Copy as decimal latitude, longitude`}
+      className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-full border border-border px-2.5 font-mono text-[11px] text-lunar-300 transition-colors hover:border-accent/50 hover:text-text"
+    >
+      {copied ? <span className="text-good">✓ Copied</span> : text}
+      <span aria-hidden className="text-lunar-500">⧉</span>
+    </button>
+  );
+}
 
 /** Curated sites grouped by region, plus "Custom coordinates" with validated lat/lon. */
-export function SitePicker({ value, onChange }: Props) {
+export function SitePicker({ value, onChange, precision = 2 }: Props) {
   const id = useId();
   const [sites, setSites] = useState<Site[]>([]);
   const [customOpen, setCustomOpen] = useState(value.kind === "custom");
@@ -74,7 +107,10 @@ export function SitePicker({ value, onChange }: Props) {
             <optgroup key={g.region} label={regionLabel(g.region)}>
               {g.sites.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name}
+                  {/* Native <option>s can't be styled per part, so the coordinates are plain text. The selected
+                      option shows just the name (the closed select would cut the coordinates off; the chip next
+                      to it shows them). */}
+                  {s.id === selectValue ? s.name : `${s.name} · ${formatLatLon(s.lat, s.lon)}`}
                 </option>
               ))}
             </optgroup>
@@ -83,6 +119,8 @@ export function SitePicker({ value, onChange }: Props) {
         </select>
         {selected && !customOpen && <Pill>{regionLabel(selected.region)}</Pill>}
         {(customOpen || value.kind === "custom") && <Pill tone="accent">Custom</Pill>}
+        {selected && !customOpen && <CoordsChip lat={selected.lat} lon={selected.lon} precision={precision} />}
+        {value.kind === "custom" && !customOpen && <CoordsChip lat={value.lat} lon={value.lon} precision={precision} />}
       </div>
 
       {customOpen && (

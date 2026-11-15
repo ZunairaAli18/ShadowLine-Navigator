@@ -35,3 +35,23 @@ export function navigatorUrl(params: {
   const s = q.toString();
   return s ? `/app?${s}` : "/app";
 }
+
+/**
+ * Site coordinates, the same way everywhere: "0.67°N 23.47°E" (2 decimals; Expert mode may use 4).
+ * Longitude is normalized to -180..180; a value that rounds to 0 is shown as N / E (never "0.00°S").
+ */
+export function formatLatLon(lat: number, lon: number, decimals = 2): string {
+  const f = 10 ** decimals;
+  const la = Math.round(lat * f) / f;
+  let lo = ((((lon + 180) % 360) + 360) % 360) - 180;
+  if (lo === -180 && lon > 0) lo = 180;
+  lo = Math.round(lo * f) / f;
+  const ns = la < 0 ? "S" : "N";
+  const ew = lo < 0 ? "W" : "E";
+  return `${Math.abs(la).toFixed(decimals)}°${ns} ${Math.abs(lo).toFixed(decimals)}°${ew}`;
+}
+
+/** Plain "lat, lon" (east-positive decimals) for copying into other tools. */
+export function latLonPlain(lat: number, lon: number, decimals = 4): string {
+  return `${lat.toFixed(decimals)}, ${lon.toFixed(decimals)}`;
+}

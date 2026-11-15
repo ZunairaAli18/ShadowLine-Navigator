@@ -177,9 +177,8 @@ def _observe(lat: float, lon: float, t):
     )
 
 
-def compute_positions(lat: float, lon: float, start: datetime, days: float, step_minutes: int) -> Positions:
-    """Sun & Earth positions every step_minutes from start, covering `days` (end excluded)."""
-    lon = _check_coords(lat, lon)
+def _time_grid(start: datetime, days: float, step_minutes: int):
+    """Validated time grid: (Skyfield Time array, list of UTC datetimes). Same rules for every series."""
     if not 0 < days <= MAX_DAYS:
         raise EphemerisError(f"days must be > 0 and <= {MAX_DAYS}, got {days}.")
     if not MIN_STEP_MINUTES <= step_minutes <= MAX_STEP_MINUTES:
@@ -197,9 +196,39 @@ def compute_positions(lat: float, lon: float, start: datetime, days: float, step
     minutes = np.arange(n) * step_minutes
     t = e.ts.utc(start.year, start.month, start.day, start.hour,
                  start.minute + minutes, start.second + start.microsecond / 1e6)
-    sun_az, sun_el, sun_d, earth_az, earth_el, earth_d = _observe(lat, lon, t)
     times = np.array([start + timedelta(minutes=int(m)) for m in minutes], dtype=object)
+    return t, times
+
+
+def compute_positions(lat: float, lon: float, start: datetime, days: float, step_minutes: int) -> Positions:
+    """Sun & Earth positions every step_minutes from start, covering `days` (end excluded)."""
+    lon = _check_coords(lat, lon)
+    t, times = _time_grid(start, days, step_minutes)
+    sun_az, sun_el, sun_d, earth_az, earth_el, earth_d = _observe(lat, lon, t)
     return Positions(times, sun_az, sun_el, sun_d, earth_az, earth_el, earth_d)
+
+
+@dataclass
+class GlobeGeometry:
+    """Sub-solar and sub-Earth points (MOON_ME frame, degrees; lon -180..180), aligned with /visibility times."""
+
+    times: np.ndarray
+    subsolar_lat: np.ndarray
+    subsolar_lon: np.ndarray
+    subearth_lat: np.ndarray
+    subearth_lon: np.ndarray
+
+
+def compute_globe_geometry(start: datetime, days: float, step_minutes: int) -> GlobeGeometry:
+    """Where on the Moon the Sun and Earth are directly overhead, seen from the Moon's centre (apparent positions).
+    One vectorised Skyfield call per body; the time grid is the same as compute_positions'."""
+    t, times = _time_grid(start, days, step_minutes)
+    e = _require()
+    centre = e.moon.at(t)
+    s_lat, s_lon, _ = centre.observe(e.sun).apparent().frame_latlon(e.frame)
+    e_lat, e_lon, _ = centre.observe(e.earth).apparent().frame_latlon(e.frame)
+    wrap = lambda lon: (lon + 180.0) % 360.0 - 180.0  # noqa: E731
+    return GlobeGeometry(times, s_lat.degrees, wrap(s_lon.degrees), e_lat.degrees, wrap(e_lon.degrees))
 
 
 def positions_at(lat: float, lon: float, time: datetime) -> Position:

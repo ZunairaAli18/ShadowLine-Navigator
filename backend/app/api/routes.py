@@ -5,6 +5,7 @@ EphemerisError -> 400, EphemerisNotLoadedError -> 503.
 """
 
 from datetime import datetime, timedelta
+from functools import lru_cache
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -21,6 +22,7 @@ from app.models import (
     Countdown,
     Countdowns,
     EarthSeries,
+    GlobeGeometryResponse,
     HealthResponse,
     HorizonResponse,
     Region,
@@ -155,6 +157,33 @@ def get_snapshot(
             earthset=Countdown(time=m.next_earthset, hours=m.next_earthset_hours),
         ),
     )
+
+
+# ---------------------------------------------------------------- globe geometry
+
+
+@lru_cache(maxsize=64)
+def _globe_cached(start_iso: str, days: float, step_minutes: int) -> GlobeGeometryResponse:
+    g = ephemeris.compute_globe_geometry(datetime.fromisoformat(start_iso), days, step_minutes)
+    return GlobeGeometryResponse(
+        start=g.times[0],
+        step_minutes=step_minutes,
+        times=list(g.times),
+        subsolar_lat=_r(g.subsolar_lat, 4),
+        subsolar_lon=_r(g.subsolar_lon, 4),
+        subearth_lat=_r(g.subearth_lat, 4),
+        subearth_lon=_r(g.subearth_lon, 4),
+    )
+
+
+@router.get("/globe-geometry", response_model=GlobeGeometryResponse)
+def globe_geometry(
+    start: datetime = Query(..., description="UTC ISO 8601, e.g. 2026-12-01T00:00:00Z"),
+    days: float = Query(14, gt=0, le=MAX_WINDOW_DAYS),
+    step_minutes: int = Query(60, ge=5, le=1440),
+) -> GlobeGeometryResponse:
+    """Sub-solar and sub-Earth points for the 3D Moon map (same window rules and time grid as /visibility)."""
+    return _globe_cached(ephemeris._to_utc(start).isoformat(), float(days), int(step_minutes))
 
 
 # ---------------------------------------------------------------- compare

@@ -227,6 +227,21 @@ class CompareResponse(BaseModel):
     results: list[ScenarioResult] = Field(description="Same order as the request's scenarios")
 
 
+# ---------------------------------------------------------------- globe geometry
+
+
+class GlobeGeometryResponse(BaseModel):
+    """Where the Sun and Earth are directly overhead on the Moon (MOON_ME frame), aligned with /visibility times."""
+
+    start: datetime
+    step_minutes: int
+    times: list[datetime]
+    subsolar_lat: list[float] = Field(description="Latitude with the Sun at the zenith (deg)")
+    subsolar_lon: list[float] = Field(description="East longitude with the Sun at the zenith (deg, -180..180)")
+    subearth_lat: list[float] = Field(description="Latitude with Earth at the zenith (deg); wobbles ~±7° (libration)")
+    subearth_lon: list[float] = Field(description="East longitude with Earth at the zenith (deg, -180..180)")
+
+
 # ---------------------------------------------------------------- best windows
 
 

@@ -8,11 +8,10 @@ why the lunar south pole is so hard, and anyone can scrub through a lunar day an
 
 Built for the **NASA Space Apps Challenge 2026**, challenge **"CLPS Lunar Landing Site Navigator"**.
 
-- **Live app:** `https://<your-app>.vercel.app` _(placeholder)_
-- **API:** `https://<your-api>.onrender.com` _(placeholder; try `/health` and `/docs`)_
+- **Live app:** https://shadowline-navigator.vercel.app
+- **API:** https://shadowline-navigator.onrender.com (interactive docs: https://shadowline-navigator.onrender.com/docs)
 
-![Shadowline screenshot](docs/screenshot.png)
-_(screenshot placeholder: add `docs/screenshot.png`)_
+![Shadowline navigator: Shackleton ridge, panorama sky plot](docs/screenshot-navigator.png)
 
 ---
 

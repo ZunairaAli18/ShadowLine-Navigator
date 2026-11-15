@@ -49,6 +49,8 @@ type Props = SkySeries & {
   index: number;
   /** Follow the position frame by frame with no spring (during playback). */
   instant?: boolean;
+  /** Readout detail: "simple" = up/hidden only, "expert" (default) = exact angles. */
+  hud?: "simple" | "expert";
   className?: string;
 };
 
@@ -334,7 +336,7 @@ function EarthMarker({ p, r, visible, clipId, wrap, reduced, labelUp }: MarkerPr
 
 // ---------------------------------------------------------------- main
 
-export function SkyPlot({ horizon, terrain, siteKey, times, sun, earth, index, instant = false, className = "" }: Props) {
+export function SkyPlot({ horizon, terrain, siteKey, times, sun, earth, index, instant = false, hud = "expert", className = "" }: Props) {
   const clipId = useId().replace(/:/g, "") + "-sky";
   const reduced = useReducedMotionPref();
   const series = useMemo(() => ({ times, sun, earth }), [times, sun, earth]);
@@ -510,27 +512,38 @@ export function SkyPlot({ horizon, terrain, siteKey, times, sun, earth, index, i
         </p>
       )}
 
-      {/* HUD readout */}
-      <div className="glass mt-3 grid gap-x-6 gap-y-1 rounded-xl px-4 py-3 font-mono text-[11px] uppercase tracking-[0.12em] sm:grid-cols-2" aria-live="off">
-        <div>
-          <span className="text-sun">☀ Sun</span>{" "}
-          <span className="text-lunar-300">
-            az {fmtAz(sAz)} el {fmtEl(sEl)}
+      {/* HUD readout: plain in Simple mode, exact numbers in Expert mode */}
+      {hud === "simple" ? (
+        <div className="glass mt-3 flex flex-wrap gap-x-6 gap-y-1 rounded-xl px-4 py-3 text-sm" aria-live="off">
+          <span>
+            <span aria-hidden className="text-sun">☀ </span>Sun: <span className={sunVisible ? "text-sun" : "text-muted"}>{sunVisible ? "up" : "hidden"}</span>
           </span>
-          <div className="text-lunar-500">
-            horizon {fmtEl(sHz)} · {Math.round(Math.min(1, Math.max(0, sunFracShown)) * 100)}% of disk visible
+          <span>
+            <span aria-hidden>🌍 </span>Earth: <span className={earthVisible ? "text-earth" : "text-muted"}>{earthVisible ? "in view" : "hidden"}</span>
+          </span>
+        </div>
+      ) : (
+        <div className="glass mt-3 grid gap-x-6 gap-y-1 rounded-xl px-4 py-3 font-mono text-[11px] uppercase tracking-[0.12em] sm:grid-cols-2" aria-live="off">
+          <div>
+            <span className="text-sun">☀ Sun</span>{" "}
+            <span className="text-lunar-300">
+              az {sAz.toFixed(2)}° el {fmtEl(sEl)}
+            </span>
+            <div className="text-lunar-500">
+              horizon {fmtEl(sHz)} · margin {fmtEl(sEl - sHz)} · {(Math.min(1, Math.max(0, sunFracShown)) * 100).toFixed(1)}% of disk
+            </div>
+          </div>
+          <div>
+            <span className="text-earth">◉ Earth</span>{" "}
+            <span className="text-lunar-300">
+              az {eAz.toFixed(2)}° el {fmtEl(eEl)}
+            </span>
+            <div className="text-lunar-500">
+              horizon {fmtEl(eHz)} · margin {fmtEl(eEl - eHz)} · {earthVisible ? "in view" : "out of view"}
+            </div>
           </div>
         </div>
-        <div>
-          <span className="text-earth">◉ Earth</span>{" "}
-          <span className="text-lunar-300">
-            az {fmtAz(eAz)} el {fmtEl(eEl)}
-          </span>
-          <div className="text-lunar-500">
-            horizon {fmtEl(eHz)} · {earthVisible ? "in view" : "out of view"}
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* legend */}
       <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted">

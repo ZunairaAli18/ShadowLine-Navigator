@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { Collapse } from "@/components/fx/Collapse";
 import { ControlBar } from "@/components/navigator/ControlBar";
+import { ExpertPanels } from "@/components/navigator/ExpertPanels";
+import { Hints, type HintId } from "@/components/navigator/Hints";
 import { BestDatesTab } from "@/components/navigator/BestDatesTab";
 import { CompareTab } from "@/components/navigator/CompareTab";
-import { MetricsPanel } from "@/components/navigator/MetricsPanel";
+import { MetricsPanel, type BodyDetail } from "@/components/navigator/MetricsPanel";
 import { MoonMapTab } from "@/components/navigator/MoonMapTab";
 import { SkyPlot } from "@/components/navigator/SkyPlot";
 import { TabBar } from "@/components/navigator/TabBar";
@@ -14,9 +17,11 @@ import { Button, Card, Pill } from "@/components/ui";
 import { useNavigatorData } from "@/hooks/useNavigatorData";
 import { useNavState } from "@/hooks/useNavState";
 import { usePlayback } from "@/hooks/usePlayback";
+import { encodeScenarios, presetFlatVsReal } from "@/lib/compareUrl";
 import { stateAt } from "@/lib/countdowns";
-import { clampPos, posForTime, timeAt } from "@/lib/interp";
-import { type Location, type NavState, type NavTab, type TerrainChoice } from "@/lib/navState";
+import { clampPos, interpAt, posForTime, timeAt } from "@/lib/interp";
+import { type Location, type NavMode, type NavState, type NavTab, type TerrainChoice } from "@/lib/navState";
+import { storeMode, useStoredMode } from "@/lib/useStoredMode";
 
 const URL_WRITE_MS = 250; // ~4 writes/s while scrubbing or playing
 
@@ -105,6 +110,30 @@ export function Navigator() {
   );
   const selected = series && n ? stateAt(series, events, pos) : null;
 
+  // ---- Simple / Expert (F10): URL first, then the remembered choice, then Simple.
+  const storedMode = useStoredMode();
+  const mode: NavMode = state.mode ?? storedMode ?? "simple";
+  const onMode = useCallback(
+    (m: NavMode) => {
+      storeMode(m);
+      update({ mode: m }, { replace: true });
+    },
+    [update],
+  );
+  const detail: BodyDetail | null =
+    data && n
+      ? (() => {
+          const sunEl = interpAt(data.sun.el, pos);
+          const earthEl = interpAt(data.earth.el, pos);
+          return {
+            sunEl,
+            sunMargin: sunEl - interpAt(data.sun.horizon_el, pos),
+            earthEl,
+            earthMargin: earthEl - interpAt(data.earth.horizon_el, pos) - nav.dataMargin,
+          };
+        })()
+      : null;
+
   // ---- tabs (F6/F7). Inputs are memoised so tab content doesn't re-render on every playback frame.
   const curLocKey = JSON.stringify(state.location);
   const curStartMs = state.start.getTime();
@@ -132,6 +161,13 @@ export function Navigator() {
     (lat: number, lon: number) =>
       update({ location: { kind: "custom", lat: Math.round(lat * 100) / 100, lon: Math.round(lon * 100) / 100 } }),
     [update],
+  );
+  const onHint = useCallback(
+    (id: HintId) => {
+      if (id === "compare") update({ tab: "compare", extras: { ...JSON.parse(extrasKey), cmp: encodeScenarios(presetFlatVsReal(current)) } });
+      if (id === "map") update({ tab: "map" });
+    },
+    [update, extrasKey, current],
   );
   const openScenario = useCallback(
     (s: { location: Location; start: Date; days: number; terrain: TerrainChoice }) => {
@@ -198,7 +234,9 @@ export function Navigator() {
         </div>
       </header>
 
-      <ControlBar state={state} onChange={onControl} shareUrl={shareUrl} />
+      <ControlBar state={state} mode={mode} onMode={onMode} onChange={onControl} shareUrl={shareUrl} />
+
+      {mode === "simple" && <Hints onAction={onHint} />}
 
       {status.kind === "error" && (
         <Card role="alert" className="flex flex-col items-start gap-3 border-notviable/30 sm:flex-row sm:items-center sm:justify-between">
@@ -232,16 +270,23 @@ export function Navigator() {
           </div>
           {data && horizon ? (
             <div className={`transition-opacity duration-300 ${loading ? "opacity-60" : "opacity-100"}`}>
-              <SkyPlot horizon={horizon.elevation} terrain={horizon.terrain} siteKey={siteKey} times={times} sun={sun} earth={earth} index={pos} instant={play.playing} />
+              <SkyPlot horizon={horizon.elevation} terrain={horizon.terrain} siteKey={siteKey} times={times} sun={sun} earth={earth} index={pos} instant={play.playing} hud={mode} />
             </div>
           ) : (
             <div className="grid aspect-[16/9] animate-pulse place-items-center rounded-xl bg-bg/40 text-sm text-muted">
               {status.kind === "error" ? "No data" : "Loading the sky…"}
             </div>
           )}
+          <Collapse show={mode === "simple" && !!data?.site.description}>
+            <aside className="mt-4 rounded-xl border border-border bg-bg/30 p-4" aria-label="About this site">
+              <p className="hud mb-1.5">About this site</p>
+              <p className="text-sm text-text">{data?.site.description}</p>
+              {data?.site.why_interesting && <p className="mt-1.5 text-sm text-muted">{data.site.why_interesting}</p>}
+            </aside>
+          </Collapse>
         </Card>
 
-        <MetricsPanel metrics={nav.metrics} selected={selected} terrain={data?.terrain ?? "flat"} />
+        <MetricsPanel metrics={nav.metrics} selected={selected} detail={detail} terrain={data?.terrain ?? "flat"} mode={mode} />
       </div>
 
       {series && n > 1 ? (
@@ -263,10 +308,16 @@ export function Navigator() {
         <Card className="h-48 animate-pulse" aria-hidden />
       )}
 
+      <Collapse show={mode === "expert" && !!data && !!horizon}>
+        {data && horizon && (
+          <ExpertPanels data={data} horizon={horizon} events={events} pos={pos} onSeek={seek} terrainMode={state.terrain} earthMargin={nav.dataMargin} />
+        )}
+      </Collapse>
+
       <TabBar active={state.tab} onSelect={onSelectTab} />
 
       {state.tab === "compare" && (
-        <CompareTab cmp={state.extras.cmp ?? null} current={current} onChangeCmp={onChangeCmp} onOpen={openScenario} />
+        <CompareTab cmp={state.extras.cmp ?? null} current={current} onChangeCmp={onChangeCmp} onOpen={openScenario} mode={mode} />
       )}
       {state.tab === "map" && (
         <MoonMapTab
@@ -278,7 +329,7 @@ export function Navigator() {
           onPick={pickFromMap}
         />
       )}
-      {state.tab === "best" && <BestDatesTab extras={extrasObj} current={current} onChangeExtras={onChangeExtras} onLoad={openScenario} />}
+      {state.tab === "best" && <BestDatesTab extras={extrasObj} current={current} onChangeExtras={onChangeExtras} onLoad={openScenario} mode={mode} />}
     </div>
   );
 }

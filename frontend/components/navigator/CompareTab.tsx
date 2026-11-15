@@ -17,7 +17,8 @@ import {
   type CmpScenario,
 } from "@/lib/compareUrl";
 import { formatDuration } from "@/lib/countdowns";
-import { isoUtc, MAX_DAYS, MIN_DAYS, type Location, type TerrainChoice } from "@/lib/navState";
+import { compareCsv, downloadName, downloadText } from "@/lib/csv";
+import { isoUtc, MAX_DAYS, MIN_DAYS, type Location, type NavMode, type TerrainChoice } from "@/lib/navState";
 
 const DEBOUNCE_MS = 400;
 
@@ -27,6 +28,7 @@ type Props = {
   current: { location: Location; start: Date; days: number; terrain: TerrainChoice };
   onChangeCmp: (cmp: string) => void;
   onOpen: (s: CmpScenario) => void;
+  mode: NavMode;
 };
 
 type Result = { status: "idle" | "loading" } | { status: "ok"; results: ScenarioResult[] } | { status: "error"; message: string };
@@ -118,8 +120,11 @@ function ScenarioEditor({
   );
 }
 
-function ResultBlock({ r, best, onOpen }: { r: ScenarioResult; best: Record<string, boolean>; onOpen: () => void }) {
+const utc = (iso: string | null | undefined) => (iso ? `${iso.slice(0, 16).replace("T", " ")} UTC` : "not in window");
+
+function ResultBlock({ r, best, onOpen, mode }: { r: ScenarioResult; best: Record<string, boolean>; onOpen: () => void; mode: NavMode }) {
   const m = r.metrics;
+  const expert = mode === "expert";
   const bar = (label: string, v: number, color: string, text: string, key: string) => (
     <div>
       <div className="mb-1 flex items-center justify-between text-xs">
@@ -127,7 +132,7 @@ function ResultBlock({ r, best, onOpen }: { r: ScenarioResult; best: Record<stri
           {label}
           <Best on={best[key]} />
         </span>
-        <span className={`font-mono ${text}`}>{v.toFixed(1)}%</span>
+        <span className={`font-mono ${text}`}>{expert ? v.toFixed(1) : Math.round(v)}%</span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-bg/60">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(100, v)}%` }} />
@@ -158,10 +163,15 @@ function ResultBlock({ r, best, onOpen }: { r: ScenarioResult; best: Record<stri
       {bar("◆ Both", m.both_pct, "bg-accent", "text-accent", "both")}
       <div>
         {row("Longest dark", hours(m.longest_dark_hours, m.longest_dark_truncated), "dark")}
-        {row("Longest no Earth", hours(m.longest_no_earth_hours, m.longest_no_earth_truncated), "noEarth")}
-        {row("Power index", m.power_index.toFixed(2), "power")}
-        {row("Next sunset", m.next_sunset_hours !== null && m.next_sunset_hours !== undefined ? `in ${formatDuration(m.next_sunset_hours)}` : "not in window")}
-        {row("Next Earthset", m.next_earthset_hours !== null && m.next_earthset_hours !== undefined ? `in ${formatDuration(m.next_earthset_hours)}` : "not in window")}
+        {expert && (
+          <>
+            {row("Longest no Earth", hours(m.longest_no_earth_hours, m.longest_no_earth_truncated), "noEarth")}
+            {row("Power index", m.power_index.toFixed(3), "power")}
+            {row("Next sunset", m.next_sunset ? utc(m.next_sunset) : "not in window")}
+            {row("Next Earthset", m.next_earthset ? utc(m.next_earthset) : "not in window")}
+          </>
+        )}
+        {!expert && row("Next sunset", m.next_sunset_hours != null ? `in ${formatDuration(m.next_sunset_hours)}` : "not in window")}
       </div>
       <Button variant="secondary" arrow onClick={onOpen} className="w-full">
         Open in navigator
@@ -170,7 +180,7 @@ function ResultBlock({ r, best, onOpen }: { r: ScenarioResult; best: Record<stri
   );
 }
 
-export const CompareTab = memo(function CompareTab({ cmp, current, onChangeCmp, onOpen }: Props) {
+export const CompareTab = memo(function CompareTab({ cmp, current, onChangeCmp, onOpen, mode }: Props) {
   const decoded = useMemo(() => decodeScenarios(cmp), [cmp]);
   // No `cmp` yet: start with "Flat vs real terrain" for the current view.
   const scenarios = decoded.length ? decoded : presetFlatVsReal(current);
@@ -240,9 +250,20 @@ export const CompareTab = memo(function CompareTab({ cmp, current, onChangeCmp, 
             Scenarios side by side
           </h2>
         </div>
-        <span className="hud" aria-live="polite">
-          {result.status === "loading" ? "Computing…" : results ? `${results.length} scenarios` : ""}
-        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="hud" aria-live="polite">
+            {result.status === "loading" ? "Computing…" : results ? `${results.length} scenarios` : ""}
+          </span>
+          {mode === "expert" && results && (
+            <button
+              type="button"
+              onClick={() => downloadText(downloadName("compare", scenarios[0].start, scenarios[0].days, "csv"), compareCsv(results, scenarios.map((x) => x.label)))}
+              className="min-h-9 rounded-full border border-border px-4 text-xs font-semibold text-muted hover:border-accent/50 hover:text-accent"
+            >
+              ⬇ Comparison CSV
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -293,7 +314,7 @@ export const CompareTab = memo(function CompareTab({ cmp, current, onChangeCmp, 
               onRemove={() => set(scenarios.filter((_, k) => k !== i))}
             />
             {results ? (
-              <ResultBlock r={results[i]} best={best[i]} onOpen={() => onOpen(s)} />
+              <ResultBlock r={results[i]} best={best[i]} onOpen={() => onOpen(s)} mode={mode} />
             ) : (
               <div className="h-64 animate-pulse rounded-xl bg-bg/40" aria-hidden />
             )}

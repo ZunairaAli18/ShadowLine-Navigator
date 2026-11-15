@@ -2,14 +2,52 @@
 
 import { memo, useEffect, useId, useState } from "react";
 
+import { Collapse } from "@/components/fx/Collapse";
 import { SitePicker } from "@/components/navigator/SitePicker";
-import { floorToHour, MAX_DAYS, MIN_DAYS, STEPS, type NavState } from "@/lib/navState";
+import { floorToHour, MAX_DAYS, MAX_EARTH_MARGIN, MAX_STEP, MIN_DAYS, MIN_STEP, STEPS, type NavMode, type NavState } from "@/lib/navState";
 
 type Props = {
   state: NavState;
+  mode: NavMode;
+  onMode: (m: NavMode) => void;
   onChange: (patch: Partial<NavState>) => void;
   shareUrl: () => string;
 };
+
+/** Number box that commits on blur/Enter, resets on invalid input, and follows outside changes. */
+function NumberField({ id, label, value, min, max, step, onCommit, width = "w-20", describedBy }: { id: string; label: string; value: number; min: number; max: number; step: number; onCommit: (v: number) => void; width?: string; describedBy?: string }) {
+  const [text, setText] = useState(String(value));
+  const [seen, setSeen] = useState(value);
+  if (seen !== value) {
+    setSeen(value);
+    setText(String(value));
+  }
+  const commit = (t: string) => {
+    const n = Number(t);
+    if (t.trim() !== "" && Number.isFinite(n) && n >= min && n <= max) onCommit(n);
+    else setText(String(value));
+  };
+  return (
+    <>
+      <label htmlFor={id} className="sr-only">
+        {label}
+      </label>
+      <input
+        id={id}
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        value={text}
+        aria-describedby={describedBy}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && commit((e.target as HTMLInputElement).value)}
+        className={`${width} rounded-lg border border-border bg-surface-solid px-3 py-1.5 font-mono text-sm`}
+      />
+    </>
+  );
+}
 
 const STEP_LABEL: Record<number, string> = { 30: "30 min", 60: "1 h", 180: "3 h" };
 const DAY_PRESETS = [7, 14, 30];
@@ -51,7 +89,7 @@ function Segmented<T extends string | number>({
 }
 
 /** Memoised: scrubbing the timeline re-renders the navigator but not the controls. */
-export const ControlBar = memo(function ControlBar({ state, onChange, shareUrl }: Props) {
+export const ControlBar = memo(function ControlBar({ state, mode, onMode, onChange, shareUrl }: Props) {
   const id = useId();
   const [daysText, setDaysText] = useState(String(state.days));
   const [copied, setCopied] = useState(false);
@@ -184,15 +222,48 @@ export const ControlBar = memo(function ControlBar({ state, onChange, shareUrl }
             <span aria-hidden>▲ </span>Flat horizon: terrain data is available for curated sites.
           </p>
         )}
-        <button
-          type="button"
-          onClick={copy}
-          className="ml-auto rounded-full border border-border px-4 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-accent/50 hover:text-accent"
-          aria-live="polite"
-        >
-          {copied ? "✓ Link copied" : "Copy link"}
-        </button>
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <Segmented
+            label="Detail level"
+            options={["simple", "expert"] as const}
+            value={mode}
+            onChange={onMode}
+            render={(v) => (v === "simple" ? "Simple" : "Expert")}
+          />
+          <button
+            type="button"
+            onClick={copy}
+            className="min-h-8 rounded-full border border-border px-4 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-accent/50 hover:text-accent"
+            aria-live="polite"
+          >
+            {copied ? "✓ Link copied" : "Copy link"}
+          </button>
+        </div>
       </div>
+
+      {/* Expert-only controls */}
+      <Collapse show={mode === "expert"}>
+        <div className="mt-4 flex flex-wrap items-start gap-x-8 gap-y-3 border-t border-border pt-4">
+          <div className="flex flex-col gap-1.5">
+            <span className="hud">Earth margin</span>
+            <div className="flex items-center gap-2">
+              <NumberField id={`${id}-em`} label="Earth margin in degrees (0 to 10)" value={state.earthMargin} min={0} max={MAX_EARTH_MARGIN} step={0.5} onCommit={(v) => onChange({ earthMargin: Math.round(v * 10) / 10 })} describedBy={`${id}-em-help`} />
+              <span className="text-xs text-muted">°</span>
+            </div>
+            <p id={`${id}-em-help`} className="max-w-64 text-[11px] text-muted">
+              Extra clearance above the skyline for the antenna. Earth counts as visible only this far above it.
+            </p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="hud">Custom step</span>
+            <div className="flex items-center gap-2">
+              <NumberField id={`${id}-step`} label="Time step in minutes (5 to 1440)" value={state.step} min={MIN_STEP} max={MAX_STEP} step={5} onCommit={(v) => onChange({ step: Math.round(v) })} width="w-24" />
+              <span className="text-xs text-muted">min</span>
+            </div>
+            <p className="max-w-64 text-[11px] text-muted">Smaller steps give finer timing (up to 20,000 points per window).</p>
+          </div>
+        </div>
+      </Collapse>
     </div>
   );
 });

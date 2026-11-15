@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 
 import { LiveError, LiveSkeleton } from "@/components/learn/LiveState";
+import { NumbersLink } from "@/components/learn/NumbersLink";
 import { useSiteSky } from "@/components/learn/useSiteSky";
 import { SkyPlot } from "@/components/navigator/SkyPlot";
 import { Card } from "@/components/ui";
@@ -13,12 +14,15 @@ import { useNowHour } from "@/lib/useNowHour";
 const DAYS = 14;
 const fmt = (ms: number) => `${new Date(ms).toISOString().slice(0, 16).replace("T", " ")} UTC`;
 
-function SkyCard({ title, sub, sky, pos, playing }: { title: string; sub: string; sky: ReturnType<typeof useSiteSky>; pos: number; playing: boolean }) {
+function SkyCard({ title, sub, sky, pos, playing, site, start }: { title: string; sub: string; sky: ReturnType<typeof useSiteSky>; pos: number; playing: boolean; site: string; start: Date }) {
   return (
     <Card className="min-w-0 space-y-2 p-4 sm:p-5">
-      <div>
-        <h3 className="text-lg">{title}</h3>
-        <p className="text-xs text-muted">{sub}</p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="text-lg">{title}</h3>
+          <p className="text-xs text-muted">{sub}</p>
+        </div>
+        <NumbersLink site={site} start={start} days={DAYS} />
       </div>
       {sky.status.kind === "error" ? (
         <LiveError message={sky.status.message} onRetry={sky.retry} />
@@ -80,8 +84,8 @@ function DualSky({ start }: { start: Date }) {
         <span className="font-mono text-xs text-lunar-300">{times && ready ? fmt(timeAt(times, pos)) : "—"}</span>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <SkyCard title="Apollo 11 · equator" sub="Looking straight up: the Sun arcs high across the sky." sky={eq} pos={pos} playing={play.playing} />
-        <SkyCard title="Shackleton ridge · south pole" sub="Looking at the horizon all the way round (height exaggerated)." sky={pole} pos={pos} playing={play.playing} />
+        <SkyCard title="Apollo 11 · equator" sub="Looking straight up: the Sun arcs high across the sky." sky={eq} pos={pos} playing={play.playing} site="apollo-11" start={start} />
+        <SkyCard title="Shackleton ridge · south pole" sub="Looking at the horizon all the way round (height exaggerated)." sky={pole} pos={pos} playing={play.playing} site="shackleton-ridge" start={start} />
       </div>
     </div>
   );

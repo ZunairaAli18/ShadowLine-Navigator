@@ -9,7 +9,14 @@ import { isoUtc, type NavState } from "@/lib/navState";
 const DEBOUNCE_MS = 300;
 const FLAT = Array.from({ length: 360 }, () => 0);
 
-export type HorizonData = { elevation: number[]; terrain: "lola" | "flat" };
+export type HorizonData = {
+  elevation: number[];
+  terrain: "lola" | "flat";
+  demSource?: string | null;
+  demResolutionM?: number | null;
+  siteHeightM?: number | null;
+  maxDistanceKm?: number | null;
+};
 export type BodyState = { az: number; el: number; horizonEl: number; visible: boolean; fraction: number };
 
 type Status =
@@ -24,6 +31,7 @@ type Status =
  */
 export function useNavigatorData(state: NavState) {
   const [data, setData] = useState<VisibilityResponse | null>(null);
+  const [dataMargin, setDataMargin] = useState(0); // earth margin the loaded data was computed with
   const [horizon, setHorizon] = useState<HorizonData | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -36,6 +44,7 @@ export function useNavigatorData(state: NavState) {
     days: state.days,
     step: state.step,
     terrain: state.terrain,
+    earthMargin: state.earthMargin,
     attempt,
   });
 
@@ -46,7 +55,14 @@ export function useNavigatorData(state: NavState) {
       try {
         const where = loc.kind === "site" ? { site_id: loc.siteId } : { lat: loc.lat, lon: loc.lon };
         const visP = getVisibility(
-          { ...where, start: state.start, days: state.days, step_minutes: state.step, terrain_mode: state.terrain },
+          {
+            ...where,
+            start: state.start,
+            days: state.days,
+            step_minutes: state.step,
+            terrain_mode: state.terrain,
+            earth_margin_deg: state.earthMargin,
+          },
           { signal: ctrl.signal },
         );
         let horizonP: Promise<HorizonData>;
@@ -57,13 +73,21 @@ export function useNavigatorData(state: NavState) {
           horizonP = cached
             ? Promise.resolve(cached)
             : getHorizon(loc.siteId, { signal: ctrl.signal }).then((h) => {
-                const hd: HorizonData = { elevation: h.elevation, terrain: h.terrain };
+                const hd: HorizonData = {
+                  elevation: h.elevation,
+                  terrain: h.terrain,
+                  demSource: h.dem_source,
+                  demResolutionM: h.dem_resolution_m,
+                  siteHeightM: h.site_height_m,
+                  maxDistanceKm: h.max_distance_km,
+                };
                 horizonCache.current.set(loc.siteId, hd);
                 return hd;
               });
         }
         const [vis, hor] = await Promise.all([visP, horizonP]);
         setData(vis);
+        setDataMargin(state.earthMargin);
         setHorizon(hor);
         setStatus({ kind: "ok" });
       } catch (e) {
@@ -120,7 +144,8 @@ export function useNavigatorData(state: NavState) {
   const series = useMemo<CountdownSeries | null>(() => {
     if (!data) return null;
     const sunMargin = data.sun.el.map((e, i) => e - data.sun.horizon_el[i]);
-    const earthMargin = data.earth.el.map((e, i) => e - data.earth.horizon_el[i]);
+    // Same rule as the backend: Earth visible = el - horizon - earth_margin_deg > 0.
+    const earthMargin = data.earth.el.map((e, i) => e - data.earth.horizon_el[i] - dataMargin);
     return {
       timesMs: times.map((t) => t.getTime()),
       sunMargin,
@@ -129,8 +154,8 @@ export function useNavigatorData(state: NavState) {
       earthMargin,
       earthVisible: data.earth.visible,
     };
-  }, [data, times]);
+  }, [data, times, dataMargin]);
   const events = useMemo<TimelineEvent[]>(() => (series ? allEvents(series) : []), [series]);
 
-  return { data, horizon, times, n, status, retry, sunAt, earthAt, series, events, metrics: data?.metrics ?? null };
+  return { data, horizon, times, n, status, retry, sunAt, earthAt, series, events, dataMargin, metrics: data?.metrics ?? null };
 }

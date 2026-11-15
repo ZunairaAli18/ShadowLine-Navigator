@@ -1,11 +1,14 @@
 /**
  * Navigator state <-> URL query string (shareable links). Pure functions, unit-tested.
  *
- * /app?site=<id> | lat=&lon=, start=<ISO>, days=, step=, terrain=auto|flat, t=<ISO selected time>, tab=
- * Defaults: site=shackleton-ridge, start=now floored to the hour, days=14, step=60, terrain=auto, t=start.
+ * /app?site=<id> | lat=&lon=, start=<ISO>, days=, step=, terrain=auto|flat, t=<ISO selected time>, tab=,
+ *      mode=simple|expert, emargin=<deg>
+ * Defaults: site=shackleton-ridge, start=now floored to the hour, days=14, step=60, terrain=auto, t=start,
+ * mode=null (caller falls back to the remembered choice, then "simple"), emargin=0.
  */
 
 export type TerrainChoice = "auto" | "flat";
+export type NavMode = "simple" | "expert";
 export type NavTab = "compare" | "best" | "map" | "learn";
 export type Location = { kind: "site"; siteId: string } | { kind: "custom"; lat: number; lon: number };
 
@@ -17,6 +20,10 @@ export type NavState = {
   terrain: TerrainChoice;
   t: Date; // selected time
   tab: NavTab | null;
+  /** null when the URL has no mode (the navigator then uses the remembered choice, else "simple"). */
+  mode: NavMode | null;
+  /** Expert: extra clearance Earth must have above the skyline (deg), sent as earth_margin_deg. */
+  earthMargin: number;
   /** Tab settings kept in the URL as-is (cmp = compare scenarios; b* = best-dates inputs). */
   extras: Partial<Record<ExtraKey, string>>;
 };
@@ -27,7 +34,10 @@ export type ExtraKey = (typeof EXTRA_KEYS)[number];
 export const DEFAULT_SITE = "shackleton-ridge";
 export const DEFAULT_DAYS = 14;
 export const DEFAULT_STEP = 60;
-export const STEPS = [30, 60, 180] as const;
+export const STEPS = [30, 60, 180] as const; // presets; expert mode allows any 5-1440
+export const MIN_STEP = 5;
+export const MAX_STEP = 1440;
+export const MAX_EARTH_MARGIN = 10;
 export const MIN_DAYS = 1;
 export const MAX_DAYS = 60;
 const TABS: NavTab[] = ["compare", "best", "map", "learn"];
@@ -76,7 +86,8 @@ export function parseNavState(params: URLSearchParams, now: Date = new Date()): 
   const daysRaw = parseNum(params.get("days"));
   const days = daysRaw === null ? DEFAULT_DAYS : Math.min(MAX_DAYS, Math.max(MIN_DAYS, Math.round(daysRaw)));
   const stepRaw = parseNum(params.get("step"));
-  const step = (STEPS as readonly number[]).includes(stepRaw ?? -1) ? (stepRaw as number) : DEFAULT_STEP;
+  const step =
+    stepRaw !== null && Number.isInteger(stepRaw) && stepRaw >= MIN_STEP && stepRaw <= MAX_STEP ? stepRaw : DEFAULT_STEP;
   const terrain: TerrainChoice = params.get("terrain") === "flat" ? "flat" : "auto";
   const end = new Date(start.getTime() + days * 86_400_000);
   let t = parseDate(params.get("t")) ?? start;
@@ -89,7 +100,12 @@ export function parseNavState(params: URLSearchParams, now: Date = new Date()): 
     if (v) extras[k] = v;
   }
 
-  return { location, start, days, step, terrain, t, tab, extras };
+  const modeRaw = params.get("mode");
+  const mode: NavMode | null = modeRaw === "expert" || modeRaw === "simple" ? modeRaw : null;
+  const em = parseNum(params.get("emargin"));
+  const earthMargin = em === null ? 0 : Math.min(MAX_EARTH_MARGIN, Math.max(0, Math.round(em * 10) / 10));
+
+  return { location, start, days, step, terrain, t, tab, mode, earthMargin, extras };
 }
 
 /** ISO without milliseconds, e.g. 2026-12-01T00:00:00Z. */
@@ -110,6 +126,8 @@ export function serializeNavState(s: NavState): URLSearchParams {
   q.set("terrain", s.terrain);
   if (s.t.getTime() !== s.start.getTime()) q.set("t", isoUtc(s.t));
   if (s.tab) q.set("tab", s.tab);
+  if (s.mode) q.set("mode", s.mode);
+  if (s.earthMargin > 0) q.set("emargin", String(s.earthMargin));
   for (const k of EXTRA_KEYS) {
     const v = s.extras[k];
     if (v) q.set(k, v);

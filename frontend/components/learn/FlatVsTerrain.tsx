@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { CountUp } from "@/components/fx/CountUp";
 import { Reveal } from "@/components/fx/Reveal";
 import { LiveError, LiveSkeleton } from "@/components/learn/LiveState";
+import { NumbersLink } from "@/components/learn/NumbersLink";
 import { Card, Pill, VerdictBadge } from "@/components/ui";
 import { ApiError, compare, type ScenarioResult } from "@/lib/api";
 import { LUNAR_DAY_DAYS } from "@/lib/compareUrl";
@@ -119,6 +120,7 @@ function Live({ now }: { now: Date }) {
           ? "This is the current window, the one with the biggest difference among the next four lunar days."
           : `We checked this lunar day and the next three; this window (${pick.offset} lunar day${pick.offset > 1 ? "s" : ""} from now) shows the biggest difference.`}
       </p>
+      <NumbersLink site={SITE} start={pick.start} days={DAYS} />
       <div className="grid gap-4 md:grid-cols-2">
         <Reveal>
           <ResultCard r={pick.flat} title="If the ground were flat" tone="default" />

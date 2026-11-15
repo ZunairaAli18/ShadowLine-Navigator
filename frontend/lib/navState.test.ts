@@ -36,13 +36,28 @@ describe("parseNavState values", () => {
   });
 
   it("falls back on bad values", () => {
-    const s = parse("lat=-95&lon=10&days=999&step=7&terrain=lumpy&start=yesterday&tab=nope");
+    const s = parse("lat=-95&lon=10&days=999&step=2&terrain=lumpy&start=yesterday&tab=nope&mode=wizard&emargin=99");
     expect(s.location).toEqual({ kind: "site", siteId: "shackleton-ridge" });
     expect(s.days).toBe(60);
     expect(s.step).toBe(60);
     expect(s.terrain).toBe("auto");
     expect(s.start.toISOString()).toBe("2026-11-15T09:00:00.000Z");
     expect(s.tab).toBeNull();
+    expect(s.mode).toBeNull();
+    expect(s.earthMargin).toBe(10);
+  });
+
+  it("reads mode, Earth margin and a custom step", () => {
+    const s = parse("site=im-2&mode=expert&emargin=2.25&step=45");
+    expect(s.mode).toBe("expert");
+    expect(s.earthMargin).toBe(2.3);
+    expect(s.step).toBe(45);
+    expect(parse("mode=simple").mode).toBe("simple");
+    expect(parse("").mode).toBeNull();
+    const out = serializeNavState(s);
+    expect(out.get("mode")).toBe("expert");
+    expect(out.get("emargin")).toBe("2.3");
+    expect(serializeNavState(parse("site=im-2")).get("emargin")).toBeNull();
   });
 
   it("clamps a selected time outside the window to the start", () => {

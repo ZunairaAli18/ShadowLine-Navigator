@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { LiveError, LiveSkeleton } from "@/components/learn/LiveState";
+import { NumbersLink } from "@/components/learn/NumbersLink";
 import { useSiteSky } from "@/components/learn/useSiteSky";
 import { usePlayback } from "@/hooks/usePlayback";
 import { interpAt, interpAz, timeAt } from "@/lib/interp";
@@ -140,6 +141,7 @@ function Strip({ start }: { start: Date }) {
         <span className="text-lunar-300">skyline {sgn(hz)}</span> →{" "}
         <span className={up ? "text-good" : "text-notviable"}>{up ? "✓ above the skyline: can talk" : "✕ below the skyline: no contact"}</span>
       </p>
+      <NumbersLink site="shackleton-ridge" start={start} days={DAYS} />
     </div>
   );
 }

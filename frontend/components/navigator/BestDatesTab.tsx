@@ -6,7 +6,8 @@ import { SitePicker } from "@/components/navigator/SitePicker";
 import { UtcDateTime } from "@/components/navigator/UtcDateTime";
 import { Button, Card, VerdictBadge } from "@/components/ui";
 import { ApiError, bestWindows, type BestWindowsResponse } from "@/lib/api";
-import { isoUtc, MAX_DAYS, MIN_DAYS, normalizeLon, validLat, type ExtraKey, type Location, type TerrainChoice } from "@/lib/navState";
+import { bestWindowsCsv, downloadName, downloadText } from "@/lib/csv";
+import { isoUtc, MAX_DAYS, MIN_DAYS, normalizeLon, validLat, type ExtraKey, type Location, type NavMode, type TerrainChoice } from "@/lib/navState";
 
 const DEBOUNCE_MS = 400;
 const MAX_RANGE_DAYS = 180;
@@ -19,6 +20,7 @@ type Props = {
   current: { location: Location; start: Date; days: number; terrain: TerrainChoice };
   onChangeExtras: (patch: Extras) => void;
   onLoad: (w: { location: Location; start: Date; days: number; terrain: TerrainChoice }) => void;
+  mode: NavMode;
 };
 
 type Inputs = { location: Location; from: Date; to: Date; days: number; terrain: TerrainChoice; gapDays: number };
@@ -63,7 +65,8 @@ const fmtDay = (ms: number) => new Date(ms).toLocaleDateString("en-GB", { day: "
 
 type Res = { status: "idle" | "loading" } | { status: "ok"; data: BestWindowsResponse } | { status: "error"; message: string };
 
-export const BestDatesTab = memo(function BestDatesTab({ extras, current, onChangeExtras, onLoad }: Props) {
+export const BestDatesTab = memo(function BestDatesTab({ extras, current, onChangeExtras, onLoad, mode }: Props) {
+  const expert = mode === "expert";
   const inp = readInputs(extras, current);
   const rangeDays = (inp.to.getTime() - inp.from.getTime()) / DAY;
   const inputError =
@@ -155,9 +158,20 @@ export const BestDatesTab = memo(function BestDatesTab({ extras, current, onChan
             When should we land?
           </h2>
         </div>
-        <span className="hud" aria-live="polite">
-          {res.status === "loading" ? "Searching…" : data ? `${data.candidates_evaluated} start times checked` : ""}
-        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="hud" aria-live="polite">
+            {res.status === "loading" ? "Searching…" : data ? `${data.candidates_evaluated} start times checked` : ""}
+          </span>
+          {expert && data && (
+            <button
+              type="button"
+              onClick={() => downloadText(downloadName(data.site.id, data.range_start, data.mission_days, "csv", "_best"), bestWindowsCsv(data))}
+              className="min-h-9 rounded-full border border-border px-4 text-xs font-semibold text-muted hover:border-accent/50 hover:text-accent"
+            >
+              ⬇ Best windows CSV
+            </button>
+          )}
+        </div>
       </div>
 
       <Card className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_auto_auto_auto]">
@@ -266,7 +280,15 @@ export const BestDatesTab = memo(function BestDatesTab({ extras, current, onChan
                   <span className="font-heading text-3xl font-bold text-accent/80 md:w-14">#{k + 1}</span>
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <p className="font-mono text-sm text-text">
-                      {fmtUtc(w.start)} → {fmtUtc(w.end)} <span className="text-lunar-500">UTC</span>
+                      {expert ? (
+                        <>
+                          {fmtUtc(w.start)} → {fmtUtc(w.end)} <span className="text-lunar-500">UTC</span>
+                        </>
+                      ) : (
+                        <>
+                          {fmtDay(new Date(w.start).getTime())} → {fmtDay(new Date(w.end).getTime())}
+                        </>
+                      )}
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
                       <VerdictBadge verdict={w.verdict} />
@@ -274,7 +296,7 @@ export const BestDatesTab = memo(function BestDatesTab({ extras, current, onChan
                     </div>
                     <p className="font-mono text-xs">
                       <span className="text-sun">☀ {w.sun_pct.toFixed(0)}%</span> · <span className="text-earth">◉ {w.earth_pct.toFixed(0)}%</span> ·{" "}
-                      <span className="text-accent">◆ {w.both_pct.toFixed(0)}%</span> · <span className="text-lunar-300">dark {w.longest_dark_hours.toFixed(0)} h</span>
+                      <span className="text-accent">◆ {w.both_pct.toFixed(0)}%</span> · <span className="text-lunar-300">dark {expert ? `${w.longest_dark_hours.toFixed(1)} h` : `${Math.round(w.longest_dark_hours)} h`}</span>
                     </p>
                   </div>
                   <Button

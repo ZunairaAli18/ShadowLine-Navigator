@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { angleDelta, azElToEnu, decodeHeights, enuToThree, heightAt, indexToXY, threeToAzEl, xyToIndex } from "./terrain";
+import { angleDelta, azElToEnu, decodeHeights, downsampleHeights, enuToThree, heightAt, indexToXY, threeToAzEl, xyToIndex } from "./terrain";
 
 describe("decodeHeights", () => {
   it("applies scale and offset to little-endian uint16 values, row-major", () => {
@@ -71,5 +71,32 @@ describe("grid index <-> metres", () => {
     expect(heightAt(h, 3, 10, 0, 0)).toBeCloseTo(11, 6); // centre = row 1, col 1
     expect(heightAt(h, 3, 10, 5, 5)).toBeCloseTo(6.5, 6); // between rows 0-1, cols 1-2
     expect(Number.isNaN(heightAt(h, 3, 10, 50, 0))).toBe(true);
+  });
+});
+
+describe("downsampleHeights (lite mode)", () => {
+  it("keeps corners and reproduces a linear ramp exactly", () => {
+    const n = 512;
+    const h = Float32Array.from({ length: n * n }, (_, i) => 3 * Math.floor(i / n) - 2 * (i % n)); // plane
+    const m = 256;
+    const d = downsampleHeights(h, n, m);
+    expect(d.length).toBe(m * m);
+    expect(d[0]).toBeCloseTo(h[0], 4);
+    expect(d[m - 1]).toBeCloseTo(h[n - 1], 3);
+    expect(d[m * m - 1]).toBeCloseTo(h[n * n - 1], 3);
+    // sample (r, c) of the small grid sits at fractional index (r, c) * 511/255 of the big one
+    const k = (n - 1) / (m - 1);
+    expect(d[100 * m + 37]).toBeCloseTo(3 * 100 * k - 2 * 37 * k, 2);
+  });
+
+  it("matches heightAt at the same ENU point", () => {
+    const n = 9;
+    const sp = 10;
+    const h = Float32Array.from({ length: n * n }, (_, i) => Math.sin(i) * 50);
+    const m = 5;
+    const d = downsampleHeights(h, n, m);
+    const spM = (sp * (n - 1)) / (m - 1);
+    const [x, y] = indexToXY(1, 3, m, spM);
+    expect(d[1 * m + 3]).toBeCloseTo(heightAt(h, n, sp, x, y), 5);
   });
 });

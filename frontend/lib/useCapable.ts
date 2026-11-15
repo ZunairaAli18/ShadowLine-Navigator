@@ -11,8 +11,10 @@ import { useSyncExternalStore } from "react";
  * placeholder until hydration decides.
  */
 
-// 1024px: below that the half-cropped globe would sit under the headline, so tablets get the 2D scene.
-const QUERIES = ["(prefers-reduced-motion: reduce)", "(min-width: 1024px)", "(pointer: fine)"];
+// 900px with a fine pointer = desktop class (full 3D, drag to rotate, scroll scenes, full 3D terrain).
+// Narrower or touch screens get the lite tiers below.
+export const DESKTOP_MIN_WIDTH = 900;
+const QUERIES = ["(prefers-reduced-motion: reduce)", `(min-width: ${DESKTOP_MIN_WIDTH}px)`, "(pointer: fine)"];
 
 let webglCache: boolean | null = null;
 function hasWebGL(): boolean {
@@ -71,6 +73,26 @@ const serverNone = (): GlobeTier => "none";
 /** Which 3D Moon this device should get ("none" during SSR and the first client render). */
 export function useGlobeTier(): GlobeTier {
   return useSyncExternalStore(subscribe, tierSnapshot, serverNone);
+}
+
+/**
+ * 3D terrain tier: full (desktop class), lite (touch / narrow screens with WebGL: downsampled patch, cheaper
+ * shadows), or the reason it can't run (shown in the toggle's tooltip).
+ */
+export type TerrainTier = "full" | "lite" | "no-webgl" | "low-power" | "reduced-motion";
+
+function terrainSnapshot(): TerrainTier {
+  if (window.matchMedia(QUERIES[0]).matches) return "reduced-motion";
+  if (lowPower()) return "low-power";
+  if (!hasWebGL()) return "no-webgl";
+  return capableSnapshot() ? "full" : "lite";
+}
+
+const serverNoWebgl = (): TerrainTier => "no-webgl";
+
+/** Which 3D terrain this device can run ("no-webgl" during SSR and the first client render). */
+export function useTerrainTier(): TerrainTier {
+  return useSyncExternalStore(subscribe, terrainSnapshot, serverNoWebgl);
 }
 
 function reducedSnapshot(): boolean {

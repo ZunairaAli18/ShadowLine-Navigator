@@ -74,3 +74,28 @@ export function angleDelta(a: number, b: number): number {
   if (d > 180) d -= 360;
   return d;
 }
+
+/**
+ * Resample an n x n height grid to m x m covering the same extent (corners stay on the corners), bilinear.
+ * Used by the lite terrain mode (512 -> 256) so phones draw a quarter of the triangles.
+ */
+export function downsampleHeights(heights: ArrayLike<number>, n: number, m: number): Float32Array {
+  const out = new Float32Array(m * m);
+  const k = (n - 1) / (m - 1);
+  for (let r = 0; r < m; r++) {
+    const fr = r * k;
+    const r0 = Math.min(n - 2, Math.floor(fr));
+    const tr = fr - r0;
+    for (let c = 0; c < m; c++) {
+      const fc = c * k;
+      const c0 = Math.min(n - 2, Math.floor(fc));
+      const tc = fc - c0;
+      const a = heights[r0 * n + c0];
+      const b = heights[r0 * n + c0 + 1];
+      const d = heights[(r0 + 1) * n + c0];
+      const e = heights[(r0 + 1) * n + c0 + 1];
+      out[r * m + c] = (a * (1 - tc) + b * tc) * (1 - tr) + (d * (1 - tc) + e * tc) * tr;
+    }
+  }
+  return out;
+}

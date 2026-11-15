@@ -23,7 +23,7 @@ import { stateAt } from "@/lib/countdowns";
 import { clampPos, interpAt, posForTime, timeAt } from "@/lib/interp";
 import { type Location, type NavMode, type NavState, type NavTab, type TerrainChoice } from "@/lib/navState";
 import { useApiWaking } from "@/lib/useApiWaking";
-import { useCapable, useReducedMotionPref } from "@/lib/useCapable";
+import { useReducedMotionPref, useTerrainTier, type TerrainTier } from "@/lib/useCapable";
 import { storeMode, useStoredMode } from "@/lib/useStoredMode";
 
 const URL_WRITE_MS = 250; // ~4 writes/s while scrubbing or playing
@@ -47,7 +47,13 @@ const TerrainView = dynamic(() => import("@/components/navigator/TerrainView"), 
   loading: () => <div className="grid aspect-[16/9] animate-pulse place-items-center rounded-xl bg-bg/40 text-sm text-muted">Loading the 3D view…</div>,
 });
 
-const TERRAIN_TIP = "3D terrain available for Shackleton ridge and IM-2 on desktop";
+const NO_PATCH_TIP = "3D terrain is available for Shackleton ridge and IM-2";
+/** Why this device can't run the 3D terrain (toggle tooltip). */
+const DEVICE_TIP: Partial<Record<TerrainTier, string>> = {
+  "no-webgl": "3D terrain needs WebGL, which this browser or device doesn't provide",
+  "low-power": "3D terrain is off in battery saver / data saver mode or on low-power devices",
+  "reduced-motion": "3D terrain is off because your device asks for reduced motion",
+};
 
 const fmtTime = (ms: number) => `${new Date(ms).toISOString().slice(0, 16).replace("T", " ")} UTC`;
 
@@ -191,19 +197,32 @@ export function Navigator() {
   // ---- playback (F5)
   const play = usePlayback({ n, stepMinutes: stepMin, pos, seek });
 
-  // ---- Sky panel view (F12): sky plot or 3D terrain (patch sites, capable devices, real terrain only)
-  const capable = useCapable();
+  // ---- Sky panel view (F12): sky plot or 3D terrain (patch sites, devices that can run it, real terrain only).
+  // Desktop class gets the full view; touch / narrow screens the lite one (see TerrainView).
+  const terrainTier = useTerrainTier();
+  const deviceOk = terrainTier === "full" || terrainTier === "lite";
   const reduced = useReducedMotionPref();
   const patchSite = data?.site.has_terrain_patch ? data.site.id : null;
-  const [terrainError, setTerrainError] = useState<{ site: string; message: string } | null>(null);
+  const [terrainError, setTerrainError] = useState<{ site: string; message: string; exact: boolean } | null>(null);
   const terrainFailed = terrainError !== null && terrainError.site === patchSite;
-  const terrainAvailable = capable && patchSite !== null && data?.terrain === "lola" && !terrainFailed;
-  const terrainTip = !capable || patchSite === null ? TERRAIN_TIP : data?.terrain !== "lola" ? "Switch Horizon to Real terrain to use the 3D view" : terrainFailed ? "3D terrain couldn't start here" : "";
+  const terrainAvailable = deviceOk && patchSite !== null && data?.terrain === "lola" && !terrainFailed;
+  const terrainTip =
+    patchSite === null
+      ? NO_PATCH_TIP
+      : !deviceOk
+        ? (DEVICE_TIP[terrainTier] ?? NO_PATCH_TIP)
+        : data?.terrain !== "lola"
+          ? "Switch Horizon to Real terrain to use the 3D view"
+          : terrainFailed
+            ? terrainError.exact
+              ? terrainError.message
+              : "3D terrain couldn't start here"
+            : "";
   const showTerrain = state.view === "terrain" && terrainAvailable;
   const setView = useCallback((v: "terrain" | null) => update({ view: v }, { replace: true }), [update]);
   const onTerrainUnavailable = useCallback(
-    (message: string) => {
-      if (patchSite) setTerrainError({ site: patchSite, message });
+    (message: string, exact = false) => {
+      if (patchSite) setTerrainError({ site: patchSite, message, exact });
     },
     [patchSite],
   );
@@ -324,7 +343,7 @@ export function Navigator() {
           </div>
           {terrainFailed && state.view === "terrain" && (
             <p className="mb-3 rounded-lg border border-risky/30 bg-risky/5 px-3 py-2 text-sm text-muted" role="status">
-              The 3D terrain couldn&rsquo;t start ({terrainError.message}). Showing the sky plot instead.
+              {terrainError.exact ? terrainError.message : <>The 3D terrain couldn&rsquo;t start ({terrainError.message}). Showing the sky plot instead.</>}
             </p>
           )}
           {data && horizon && showTerrain && patchSite ? (
@@ -337,6 +356,7 @@ export function Navigator() {
               pos={pos}
               playing={play.playing}
               reduced={reduced}
+              lite={terrainTier === "lite"}
               onUnavailable={onTerrainUnavailable}
             />
           ) : data && horizon ? (

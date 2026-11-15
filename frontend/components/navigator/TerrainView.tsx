@@ -2,13 +2,15 @@
 
 import { OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 
 import { LiveSkeleton } from "@/components/learn/LiveState";
 import { ApiError, getTerrainHeights, getTerrainPatch, type TerrainPatch } from "@/lib/api";
+import { createFpsWatch } from "@/lib/fpsWatch";
 import { interpAt, interpAz } from "@/lib/interp";
-import { angleDelta, azElToEnu, decodeHeights, enuToThree, threeToAzEl, type Vec3 } from "@/lib/terrain";
+import { SCROLL_LOCK_EVENT } from "@/components/fx/SmoothScroll";
+import { angleDelta, azElToEnu, decodeHeights, downsampleHeights, enuToThree, threeToAzEl, type Vec3 } from "@/lib/terrain";
 
 /**
  * 3D terrain view (F12): the 40 km LOLA patch around the site, lit by the real Sun at the navigator's selected
@@ -18,6 +20,8 @@ import { angleDelta, azElToEnu, decodeHeights, enuToThree, threeToAzEl, type Vec
  * Frame: patch ENU metres mapped to three.js (east +X, up +Y, north -Z), origin = the site's surface point.
  * Labels are plain DOM positioned from useFrame (no drei <Html>: its teardown crashes React on unmount).
  * Rendering is on demand (invalidate on changes); "never" while hidden or off-screen.
+ * Lite mode (touch / narrow screens): see TerrainViewProps.lite. Both modes have an Expand button (fills the
+ * viewport, locks page scrolling, Esc or Close to leave).
  */
 
 export type TerrainViewProps = {
@@ -31,9 +35,22 @@ export type TerrainViewProps = {
   pos: number;
   playing: boolean;
   reduced: boolean;
-  /** Called when the patch can't load or WebGL fails; the navigator falls back to the sky plot. */
-  onUnavailable: (message: string) => void;
+  /**
+   * Called when the patch can't load, WebGL fails, or (lite) the device is too slow; the navigator falls back to
+   * the sky plot. `exact` = show the message as-is (otherwise it's wrapped in "couldn't start (...)").
+   */
+  onUnavailable: (message: string, exact?: boolean) => void;
+  /**
+   * Phones / tablets / narrow screens: 256x256 grid (downsampled on the client), 1-2K shadow map, DPR <= 1.25,
+   * simpler material, no relief exaggeration, bigger buttons, and an FPS watchdog.
+   */
+  lite?: boolean;
 };
+
+const LITE_GRID = 256;
+const TOO_SLOW_FPS = 20;
+const TOO_HEAVY = "3D terrain is too heavy for this device; showing the sky plot.";
+const GL_FAILED = "3D terrain couldn't start on this device (WebGL error); showing the sky plot.";
 
 type CameraMode = "overview" | "lander";
 type Patch = { meta: TerrainPatch; heights: Float32Array };
@@ -145,7 +162,7 @@ function discTexture(): THREE.CanvasTexture {
 
 // ---------------------------------------------------------------- scene parts
 
-function Ground({ patch, exaggerate }: { patch: Patch; exaggerate: number }) {
+function Ground({ patch, exaggerate, lite }: { patch: Patch; exaggerate: number; lite: boolean }) {
   const { meta, heights } = patch;
   const geometry = useMemo(() => {
     const n = meta.grid_size;
@@ -166,7 +183,7 @@ function Ground({ patch, exaggerate }: { patch: Patch; exaggerate: number }) {
   useEffect(() => () => map.dispose(), [map]);
   return (
     <mesh geometry={geometry} scale={[1, exaggerate, 1]} castShadow receiveShadow>
-      <meshStandardMaterial color="#9a9aa2" map={map} roughness={1} metalness={0} />
+      {lite ? <meshLambertMaterial color="#8e8e96" /> : <meshStandardMaterial color="#9a9aa2" map={map} roughness={1} metalness={0} />}
     </mesh>
   );
 }
@@ -312,6 +329,9 @@ type SceneProps = {
   playing: boolean;
   /** On screen and the tab visible; becoming active re-renders (changes made while paused show up). */
   active: boolean;
+  lite: boolean;
+  /** Lite: average FPS stayed under TOO_SLOW_FPS for 3 s of continuous rendering. */
+  onTooSlow: () => void;
   refs: SkyRefs;
 };
 
@@ -330,9 +350,10 @@ function placeOverlay(el: HTMLDivElement | null, world: THREE.Vector3 | null, ca
 }
 
 function Scene(props: SceneProps) {
-  const { patch, horizon, sunAz, sunEl, sunVisible, earthAz, earthEl, earthVisible, minHorizon, mode, exaggerate, fov, look, focus, reduced, playing, active, refs } = props;
+  const { patch, horizon, sunAz, sunEl, sunVisible, earthAz, earthEl, earthVisible, minHorizon, mode, exaggerate, fov, look, focus, reduced, playing, active, lite, onTooSlow, refs } = props;
   const { camera, invalidate, size, gl } = useThree();
-  const shadowSize = gl.capabilities.maxTextureSize >= 4096 ? 4096 : 2048;
+  const maxTex = gl.capabilities.maxTextureSize;
+  const shadowSize = lite ? (maxTex >= 2048 ? 2048 : 1024) : maxTex >= 4096 ? 4096 : 2048;
   const light = useRef<THREE.DirectionalLight>(null);
   const earthLight = useRef<THREE.DirectionalLight>(null);
   const sunSprite = useRef<THREE.Sprite>(null);
@@ -367,7 +388,8 @@ function Scene(props: SceneProps) {
     cam.updateProjectionMatrix();
     l.shadow.mapSize.set(shadowSize, shadowSize);
     l.shadow.bias = -0.0004;
-    l.shadow.normalBias = 18;
+    // Bigger texels need a bigger offset to keep low-Sun shadows free of acne (18 m at 4096 px).
+    l.shadow.normalBias = Math.min(40, (18 * 4096) / shadowSize / 2 + 9);
     l.shadow.map?.dispose();
     l.shadow.map = null;
     invalidate();
@@ -482,6 +504,7 @@ function Scene(props: SceneProps) {
   }, [mode, camera, invalidate, refs.wrapper]);
 
   // ---- per frame: lander camera, sky objects follow the camera (true directions from the viewpoint), overlays
+  const watch = useRef({ fps: createFpsWatch({ minFps: TOO_SLOW_FPS }), probeUntil: 0, tripped: false });
   const fps = useRef({ frames: 0, t0: 0 });
   const tmp = useMemo(() => new THREE.Vector3(), []);
   useFrame((state, dt) => {
@@ -550,6 +573,25 @@ function Scene(props: SceneProps) {
       }
     }
 
+    // Lite watchdog (lib/fpsWatch.ts): frames are continuous during a probe after the view becomes active and
+    // while playing; a 3 s window averaging under TOO_SLOW_FPS (without throttling gaps) falls back to the sky plot.
+    if (lite) {
+      const w = watch.current;
+      const nowMs = performance.now();
+      const probing = nowMs < w.probeUntil;
+      if (probing) invalidate();
+      if (probing || playing) {
+        const r = w.fps.frame(nowMs);
+        if (r.avg !== null) refs.wrapper.current?.setAttribute("data-avg-fps", String(Math.round(r.avg)));
+        if (r.tooSlow && !w.tripped) {
+          w.tripped = true;
+          onTooSlow();
+        }
+      } else {
+        w.fps.stop();
+      }
+    }
+
     // Rough FPS while rendering continuously (exposed on the wrapper for testing).
     const f = fps.current;
     f.frames++;
@@ -560,6 +602,15 @@ function Scene(props: SceneProps) {
       f.t0 = now;
     }
   });
+
+  useEffect(() => {
+    if (active && lite) {
+      const now = performance.now();
+      watch.current.fps.start(now); // 1 s warm-up, then a 3 s window
+      watch.current.probeUntil = now + 4400;
+      invalidate();
+    }
+  }, [active, lite, invalidate]);
 
   // Keep rendering while playing (positions change every frame anyway) and invalidate on prop changes.
   useEffect(() => {
@@ -577,7 +628,7 @@ function Scene(props: SceneProps) {
       {/* Earthshine: a faint bluish fill from Earth's direction when it's above the horizon. */}
       <directionalLight ref={earthLight} intensity={earthEl > 0 ? 0.05 : 0} color="#9fd6ff" />
 
-      <Ground patch={patch} exaggerate={exaggerate} />
+      <Ground patch={patch} exaggerate={exaggerate} lite={lite} />
       <SkylineRing horizon={horizon} bottom={bottom} exaggerate={exaggerate} drawn={mode === "lander"} />
       {mode === "overview" && (
         <>
@@ -604,7 +655,7 @@ function Scene(props: SceneProps) {
       </mesh>
 
       {mode === "overview" && (
-        <OrbitControls makeDefault enablePan={false} enableDamping dampingFactor={0.1} minDistance={15} maxDistance={70_000} maxPolarAngle={Math.PI * 0.46} zoomSpeed={2.5} rotateSpeed={0.5} />
+        <OrbitControls makeDefault enablePan={false} enableDamping dampingFactor={0.1} minDistance={15} maxDistance={70_000} maxPolarAngle={Math.PI * 0.46} zoomSpeed={lite ? 1 : 2.5} rotateSpeed={0.5} />
       )}
     </>
   );
@@ -612,7 +663,7 @@ function Scene(props: SceneProps) {
 
 // ---------------------------------------------------------------- main component
 
-export default function TerrainView({ siteId, horizon, sun, earth, earthMargin, pos, playing, reduced, onUnavailable }: TerrainViewProps) {
+export default function TerrainView({ siteId, horizon, sun, earth, earthMargin, pos, playing, reduced, onUnavailable, lite = false }: TerrainViewProps) {
   const [patch, setPatch] = useState<Patch | null>(null);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [mode, setMode] = useState<CameraMode>("overview");
@@ -620,6 +671,7 @@ export default function TerrainView({ siteId, horizon, sun, earth, earthMargin, 
   const [fov, setFov] = useState(60);
   const [look, setLook] = useState<LookRequest>(null);
   const [focus, setFocus] = useState<FocusRequest>(null);
+  const [expanded, setExpanded] = useState(false);
   const [onScreen, setOnScreen] = useState(false);
   const [tabVisible, setTabVisible] = useState(true);
   const wrapper = useRef<HTMLDivElement>(null);
@@ -636,7 +688,14 @@ export default function TerrainView({ siteId, horizon, sun, earth, earthMargin, 
       try {
         const meta = await getTerrainPatch(siteId, { signal: ctrl.signal });
         const buf = await getTerrainHeights(meta.bin_url, { signal: ctrl.signal });
-        setPatch({ meta, heights: decodeHeights(buf, meta.grid_size, meta.z_scale, meta.z_offset) });
+        const full = decodeHeights(buf, meta.grid_size, meta.z_scale, meta.z_offset);
+        if (lite && meta.grid_size > LITE_GRID) {
+          // Same 40 km extent with a quarter of the vertices.
+          const heights = downsampleHeights(full, meta.grid_size, LITE_GRID);
+          setPatch({ meta: { ...meta, grid_size: LITE_GRID, spacing_m: meta.extent_m / (LITE_GRID - 1) }, heights });
+        } else {
+          setPatch({ meta, heights: full });
+        }
         setLoadedFor(siteId);
       } catch (e) {
         if ((e as Error)?.name === "AbortError") return;
@@ -644,7 +703,46 @@ export default function TerrainView({ siteId, horizon, sun, earth, earthMargin, 
       }
     })();
     return () => ctrl.abort();
-  }, [siteId, onUnavailable]);
+  }, [siteId, onUnavailable, lite]);
+
+  // ---- expanded: fill the viewport, lock page scrolling (native + Lenis), Esc closes
+  useEffect(() => {
+    if (!expanded) return;
+    const html = document.documentElement;
+    const prev = html.style.overflow;
+    html.style.overflow = "hidden";
+    html.dataset.terrainExpanded = "true";
+    window.dispatchEvent(new CustomEvent(SCROLL_LOCK_EVENT, { detail: true }));
+    // An ancestor with backdrop-filter / transform / filter (e.g. the glass card) would trap position:fixed
+    // inside it; switch those off while expanded and restore them afterwards.
+    const trapped: { el: HTMLElement; css: string }[] = [];
+    for (let el = wrapper.current?.parentElement; el && el !== html; el = el.parentElement) {
+      const cs = getComputedStyle(el);
+      if (cs.backdropFilter !== "none" || cs.transform !== "none" || cs.filter !== "none") {
+        trapped.push({ el, css: el.style.cssText });
+        el.style.setProperty("backdrop-filter", "none");
+        el.style.setProperty("-webkit-backdrop-filter", "none");
+        el.style.setProperty("transform", "none");
+        el.style.setProperty("filter", "none");
+      }
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExpanded(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      html.style.overflow = prev;
+      delete html.dataset.terrainExpanded;
+      trapped.forEach(({ el, css }) => (el.style.cssText = css));
+      window.dispatchEvent(new CustomEvent(SCROLL_LOCK_EVENT, { detail: false }));
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [expanded]);
+
+  const onTooSlow = useCallback(() => {
+    setExpanded(false);
+    onUnavailable(TOO_HEAVY, true);
+  }, [onUnavailable]);
 
   // ---- pause when off-screen or the tab is hidden
   const ready = !!patch && loadedFor === siteId;
@@ -670,25 +768,33 @@ export default function TerrainView({ siteId, horizon, sun, earth, earthMargin, 
   const earthVisible = earthMargin !== null && earthMargin > 0;
   const minHorizon = useMemo(() => Math.min(...horizon), [horizon]);
   const active = onScreen && tabVisible;
-  const ex = mode === "overview" && exaggerate ? 3 : 1;
+  const ex = !lite && mode === "overview" && exaggerate ? 3 : 1;
 
   if (!ready) return <LiveSkeleton className="aspect-[16/9]" label="Loading 40 km of LOLA terrain…" />;
 
   const fmt = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}°`;
-  const chip = "min-h-8 rounded-full px-3 text-xs font-semibold transition-colors";
+  // Lite = touch: 40 px tap targets.
+  const chip = `${lite ? "min-h-10 px-4 text-sm" : "min-h-8 px-3 text-xs"} rounded-full font-semibold transition-colors`;
 
   return (
     <div
       ref={wrapper}
-      className={`relative aspect-[16/9] min-h-64 w-full touch-none select-none overflow-hidden rounded-xl bg-black ${mode === "lander" ? "cursor-grab active:cursor-grabbing" : ""}`}
+      className={`touch-none select-none overflow-hidden bg-black ${
+        expanded ? "fixed inset-0 z-[70] h-[100dvh] w-screen" : `relative min-h-64 w-full rounded-xl ${lite ? "aspect-[4/3] sm:aspect-[16/9]" : "aspect-[16/9]"}`
+      } ${mode === "lander" ? "cursor-grab active:cursor-grabbing" : ""}`}
       data-terrain-active={active ? "true" : "false"}
+      data-terrain-lite={lite ? "true" : undefined}
+      data-terrain-expanded-panel={expanded ? "true" : undefined}
+      role={expanded ? "dialog" : undefined}
+      aria-modal={expanded ? true : undefined}
+      aria-label={expanded ? "3D terrain, expanded" : undefined}
       data-lenis-prevent
       data-mode={mode}
     >
-      <GlBoundary onError={onUnavailable}>
+      <GlBoundary onError={() => onUnavailable(GL_FAILED, true)}>
         <Canvas
-          shadows="soft"
-          dpr={[1, 2]}
+          shadows={lite ? "percentage" : "soft"}
+          dpr={lite ? [1, 1.25] : [1, 2]}
           frameloop={active ? "demand" : "never"}
           gl={{ antialias: true, logarithmicDepthBuffer: true, powerPreference: "high-performance" }}
           camera={{ position: [-14_000, 17_000, 22_000], fov: 45, near: 0.1, far: 800_000 }}
@@ -712,6 +818,8 @@ export default function TerrainView({ siteId, horizon, sun, earth, earthMargin, 
             reduced={reduced}
             playing={playing}
             active={active}
+            lite={lite}
+            onTooSlow={onTooSlow}
             refs={refs}
           />
         </Canvas>
@@ -753,10 +861,25 @@ export default function TerrainView({ siteId, horizon, sun, earth, earthMargin, 
       )}
 
       {/* controls */}
-      <div className={`absolute left-2 flex flex-wrap items-center gap-2 ${mode === "lander" ? "top-9" : "top-2"}`}>
+      <button
+        type="button"
+        onClick={() => setExpanded((x) => !x)}
+        aria-label={expanded ? "Close the expanded 3D view" : "Expand the 3D view to fill the screen"}
+        className={`glass absolute right-2 z-10 ${chip} ${expanded ? "text-text" : "text-muted hover:text-text"} ${mode === "lander" ? "top-9" : "top-2"}`}
+      >
+        {expanded ? (
+          "✕ Close"
+        ) : (
+          <>
+            <span aria-hidden className="sm:hidden">⤢</span>
+            <span className="hidden sm:inline">⤢ Expand</span>
+          </>
+        )}
+      </button>
+      <div className={`absolute left-2 flex flex-wrap items-center gap-2 ${expanded ? "right-28" : lite ? "right-14 sm:right-28" : "right-24"} ${mode === "lander" ? "top-9" : "top-2"}`}>
         <div className="glass flex rounded-full p-0.5" role="radiogroup" aria-label="Camera">
           {(["overview", "lander"] as const).map((m) => (
-            <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} className={`${chip} ${mode === m ? "bg-accent text-bg" : "text-muted hover:text-text"}`}>
+            <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)} className={`${chip} whitespace-nowrap ${mode === m ? "bg-accent text-bg" : "text-muted hover:text-text"}`}>
               {m === "overview" ? "Overview" : "Lander's eye"}
             </button>
           ))}
@@ -766,10 +889,12 @@ export default function TerrainView({ siteId, horizon, sun, earth, earthMargin, 
           <button type="button" onClick={() => setFocus((f) => ({ close: !f?.close, nonce: Date.now() }))} className={`glass ${chip} text-text`}>
             {focus?.close ? "↗ Back to overview" : "◎ Zoom to lander"}
           </button>
-          <label className="glass flex min-h-8 cursor-pointer items-center gap-2 rounded-full px-3 text-xs text-muted">
-            <input type="checkbox" checked={exaggerate} onChange={(e) => setExaggerate(e.target.checked)} className="accent-[var(--color-accent)]" />
-            Exaggerate relief ×3 <span className="text-lunar-500">(visual only)</span>
-          </label>
+          {!lite && (
+            <label className="glass flex min-h-8 cursor-pointer items-center gap-2 rounded-full px-3 text-xs text-muted">
+              <input type="checkbox" checked={exaggerate} onChange={(e) => setExaggerate(e.target.checked)} className="accent-[var(--color-accent)]" />
+              Exaggerate relief ×3 <span className="text-lunar-500">(visual only)</span>
+            </label>
+          )}
           </>
         ) : (
           <>
@@ -779,7 +904,7 @@ export default function TerrainView({ siteId, horizon, sun, earth, earthMargin, 
             <button type="button" onClick={() => setLook({ target: "earth", nonce: Date.now() })} className={`glass ${chip} text-earth`}>
               ◉ Look at Earth
             </button>
-            <label className="glass flex min-h-8 items-center gap-2 rounded-full px-3 text-xs text-muted">
+            <label className={`glass flex ${lite ? "min-h-10" : "min-h-8"} items-center gap-2 rounded-full px-3 text-xs text-muted`}>
               FOV
               <input type="range" min={20} max={100} step={1} value={fov} onChange={(e) => setFov(Number(e.target.value))} aria-label="Field of view (degrees)" className="h-6 w-20 accent-[var(--color-accent)]" />
               <span className="w-7 font-mono text-lunar-300">{fov}°</span>
@@ -789,7 +914,10 @@ export default function TerrainView({ siteId, horizon, sun, earth, earthMargin, 
       </div>
 
       {/* HUD */}
-      <div className="glass pointer-events-none absolute bottom-2 left-2 rounded-lg px-3 py-2 font-mono text-[10px] uppercase leading-5 tracking-[0.1em]" aria-live="off">
+      <div
+        className={`glass pointer-events-none absolute bottom-2 left-2 rounded-lg px-3 py-2 font-mono text-[10px] uppercase leading-5 tracking-[0.1em] ${expanded ? "" : "max-sm:hidden"}`}
+        aria-live="off"
+      >
         <div>
           <span className="text-sun">☀ Sun</span> <span className="text-lunar-300">az {sunAz.toFixed(1)}° el {fmt(sunEl)}</span>{" "}
           <span className={sunVisible ? "text-good" : "text-notviable"}>{sunVisible ? "visible" : "hidden"}</span>
@@ -800,7 +928,8 @@ export default function TerrainView({ siteId, horizon, sun, earth, earthMargin, 
         </div>
       </div>
       <p className="pointer-events-none absolute bottom-2 right-2 hidden max-w-[45%] text-right text-[10px] text-lunar-400 sm:block">
-        {mode === "overview" ? "Drag to orbit · scroll to zoom" : "Drag to look around · slider for FOV"} · LOLA 80 m, 40 km patch; distant skyline from the 150 km horizon
+        {mode === "overview" ? (lite ? "One finger to orbit · pinch to zoom" : "Drag to orbit · scroll to zoom") : "Drag to look around · slider for FOV"} · LOLA 80 m
+        {lite ? " (lite: 157 m grid)" : ""}, 40 km patch; distant skyline from the 150 km horizon
       </p>
     </div>
   );
